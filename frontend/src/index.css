@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode - Warm, friendly, medical-professional */
+    --background: 210 20% 98%;
+    --foreground: 220 25% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 14%;
+
+    /* Primary: Medivoz Blue - warm teal-blue */
+    --primary: 200 85% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Lighter complement */
+    --secondary: 196 70% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted - Warm gray */
+    --muted: 210 18% 95%;
+    --muted-foreground: 215 14% 46%;
+
+    /* Accent - Soft teal */
+    --accent: 196 60% 94%;
+    --accent-foreground: 200 85% 35%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 200 85% 42%;
+
+    --radius: 0.625rem;
+
+    /* Sidebar */
+    --sidebar-background: 210 25% 97%;
+    --sidebar-foreground: 220 25% 14%;
+    --sidebar-primary: 200 85% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 196 60% 94%;
+    --sidebar-accent-foreground: 200 85% 35%;
+    --sidebar-border: 214 20% 92%;
+    --sidebar-ring: 200 85% 42%;
+
+    /* App layout variables updated from Sidebar */
+    --app-sidebar-width: 0px;
+    --app-topbar-height: 0px;
+  }
+
+  .dark {
+    /* Dark Mode - Deep, comfortable, professional */
+    --background: 222 30% 7%;
+    --foreground: 210 25% 93%;
+
+    --card: 222 28% 10%;
+    --card-foreground: 210 25% 93%;
+
+    --popover: 222 28% 10%;
+    --popover-foreground: 210 25% 93%;
+
+    /* Primary: Brighter for dark mode readability */
+    --primary: 196 75% 58%;
+    --primary-foreground: 222 30% 7%;
+
+    /* Secondary */
+    --secondary: 200 70% 48%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 220 20% 15%;
+    --muted-foreground: 215 15% 60%;
+
+    /* Accent */
+    --accent: 200 40% 18%;
+    --accent-foreground: 196 75% 65%;
+
+    /* Destructive */
+    --destructive: 0 65% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 18% 18%;
+    --input: 220 18% 18%;
+    --ring: 196 75% 58%;
+
+    /* Sidebar */
+    --sidebar-background: 222 30% 8%;
+    --sidebar-foreground: 210 25% 93%;
+    --sidebar-primary: 196 75% 58%;
+    --sidebar-primary-foreground: 222 30% 7%;
+    --sidebar-accent: 200 40% 18%;
+    --sidebar-accent-foreground: 196 75% 65%;
+    --sidebar-border: 220 18% 16%;
+    --sidebar-ring: 196 75% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 10% -10%, hsl(var(--primary) / 0.09), transparent 35%),
+      radial-gradient(circle at 100% 0%, hsl(var(--secondary) / 0.08), transparent 28%);
+    background-attachment: fixed;
+  }
+
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+    scroll-behavior: smooth;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring/50 ring-offset-2 ring-offset-background;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-secondary inline-block text-transparent bg-clip-text;
+  }
+
+  .text-gradient-medivoz {
+    @apply bg-gradient-to-r from-medivoz-500 via-medivoz-400 to-medivoz-300 inline-block text-transparent bg-clip-text;
+  }
+
+  .glass {
+    @apply bg-background/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .app-content {
+    @apply pl-[var(--app-sidebar-width)] pt-[var(--app-topbar-height)];
+    transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

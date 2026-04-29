@@ -1,0 +1,117 @@
+name: medivoz-v2
+
+services:
+  medivoz-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - medivoz-net
+
+  medivoz-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - medivoz-net
+
+  medivoz-api:
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    env_file:
+      - .env
+    volumes:
+      - ./deploy/backend:/app
+    command: node dist/server.js
+    depends_on:
+      medivoz-postgres:
+        condition: service_healthy
+      medivoz-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:4000/health >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=easypanel
+      - traefik.http.services.medivoz-api.loadbalancer.server.port=4000
+      - traefik.http.routers.medivoz-api-https.rule=Host(`api-medivoz.ietsidis.com`) || (Host(`medivoz.ietsidis.com`) && (PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/socket.io`)))
+      - traefik.http.routers.medivoz-api-https.entrypoints=https
+      - traefik.http.routers.medivoz-api-https.priority=100
+      - traefik.http.routers.medivoz-api-https.tls=true
+      - traefik.http.routers.medivoz-api-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.medivoz-api-http.rule=Host(`api-medivoz.ietsidis.com`) || (Host(`medivoz.ietsidis.com`) && (PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/socket.io`)))
+      - traefik.http.routers.medivoz-api-http.entrypoints=http
+      - traefik.http.routers.medivoz-api-http.priority=100
+      - traefik.http.routers.medivoz-api-http.middlewares=redirect-to-https@file
+    networks:
+      - medivoz-net
+      - easypanel
+
+  medivoz-worker:
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    env_file:
+      - .env
+    volumes:
+      - ./deploy/backend:/app
+    command: node dist/worker/clinical.worker.js
+    depends_on:
+      medivoz-postgres:
+        condition: service_healthy
+      medivoz-redis:
+        condition: service_healthy
+    networks:
+      - medivoz-net
+
+  medivoz-frontend:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./deploy/frontend/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      medivoz-api:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=easypanel
+      - traefik.http.services.medivoz-frontend.loadbalancer.server.port=80
+      - traefik.http.routers.medivoz-frontend-https.rule=Host(`medivoz.ietsidis.com`)
+      - traefik.http.routers.medivoz-frontend-https.entrypoints=https
+      - traefik.http.routers.medivoz-frontend-https.priority=50
+      - traefik.http.routers.medivoz-frontend-https.tls=true
+      - traefik.http.routers.medivoz-frontend-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.medivoz-frontend-http.rule=Host(`medivoz.ietsidis.com`)
+      - traefik.http.routers.medivoz-frontend-http.entrypoints=http
+      - traefik.http.routers.medivoz-frontend-http.priority=50
+      - traefik.http.routers.medivoz-frontend-http.middlewares=redirect-to-https@file
+    networks:
+      - medivoz-net
+      - easypanel
+
+networks:
+  medivoz-net:
+    name: medivoz-net
+    driver: bridge
+  easypanel:
+    external: true

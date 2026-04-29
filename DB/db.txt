@@ -1,0 +1,753 @@
+Project medivoz_vps_postgresql {
+  database_type: "PostgreSQL"
+  Note: '''
+  Esquema completo para una plataforma de consulta medica asistida por IA en tiempo real,
+  desplegada sobre PostgreSQL propio en un VPS.
+
+  Decisiones de esta version:
+  1) Registro simple con correo, nombre completo, especialidad y contrasena.
+  2) No hay verificacion de correo ni MFA en esta etapa.
+  3) El administrador existe, pero se crea manualmente.
+  4) Los usuarios que se registran desde la app se crean como doctores.
+  5) Fase 1 se enfoca en anamnesis de primera consulta, no en historia clinica longitudinal.
+  6) Se mantiene la tabla pacientes para distinguir pacientes entre consultas, pero con datos minimos.
+  7) Los audios SI pueden existir, pero solo de forma temporal.
+  8) El audio se usa para procesamiento y depuracion corta, luego se elimina.
+  9) La consulta es la entidad central.
+  10) La transcripcion se guarda por segmentos para permitir llenado en vivo.
+  11) La ficha medica se llena por secciones de anamnesis.
+  12) La estructura de anamnesis se prepara por especialidad, aunque inicialmente todas compartan los mismos campos.
+  13) Los agentes se definen por plantilla y se asignan a cada doctor.
+  14) Mas adelante el doctor puede personalizar configuracion y prompt del agente.
+  15) Se agrega manejo robusto de sesiones con refresh token por dispositivo.
+  '''
+}
+
+Enum rol_aplicacion {
+  doctor
+  administrador
+}
+
+Enum estado_cuenta {
+  activa
+  suspendida
+  bloqueada
+}
+
+Enum estado_consulta {
+  en_espera
+  en_curso
+  pausada
+  finalizada
+  cancelada
+}
+
+Enum tipo_consulta {
+  primera_consulta
+  control
+  seguimiento
+  interconsulta
+  emergencia
+}
+
+Enum tipo_hablante {
+  doctor
+  paciente
+  familiar
+  desconocido
+}
+
+Enum origen_transcripcion {
+  flujo_en_vivo
+  archivo_subido
+  edicion_manual
+  fusion_sistema
+}
+
+Enum nombre_seccion {
+  motivo_consulta
+  tiempo_enfermedad
+  forma_inicio
+  curso_enfermedad
+  historia_cronologica
+  antecedentes
+  sintomas_principales
+  estado_funcional_basal
+  estudios_previos
+  notas_adicionales
+}
+
+Enum estado_seccion {
+  vacia
+  borrador_ia
+  revisada
+  bloqueada
+}
+
+Enum estado_ficha {
+  vacia
+  generando
+  borrador_ia
+  en_revision
+  finalizada
+  error
+}
+
+Enum origen_actualizacion {
+  ia
+  doctor
+  manual
+  sistema
+}
+
+Enum estado_ejecucion {
+  en_cola
+  ejecutando
+  exitosa
+  fallida
+  cancelada
+}
+
+Enum tipo_ejecucion {
+  transcripcion
+  llenado_seccion
+  refinamiento_seccion
+  resumen_completo
+  validacion
+}
+
+Enum tipo_agente {
+  transcriptor
+  extractor
+  resumidor
+  validador
+}
+
+Enum estado_agente {
+  activo
+  inactivo
+}
+
+Enum origen_configuracion_agente {
+  administrador
+  doctor
+  sistema
+}
+
+Enum estado_audio_temporal {
+  pendiente_procesamiento
+  disponible
+  marcado_para_borrado
+  eliminado
+  error_eliminacion
+}
+
+Table usuarios {
+  id uuid [pk, default: `gen_random_uuid()`]
+  correo_electronico varchar(255) [not null]
+  hash_contrasena text [not null, note: "Nunca guardar la contrasena en texto plano"]
+  estado_cuenta estado_cuenta [not null, default: 'activa']
+  ultimo_acceso_en timestamptz
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    correo_electronico [unique]
+    estado_cuenta
+  }
+
+  Note: '''
+  Tabla principal de autenticacion.
+  El usuario se registra con correo y contrasena.
+  No hay verificacion de correo en esta version.
+  El administrador principal se crea manualmente.
+  '''
+}
+
+Table sesiones_usuario {
+  id uuid [pk, default: `gen_random_uuid()`]
+  usuario_id uuid [not null, ref: > usuarios.id]
+  refresh_token_hash text [not null, note: "Guardar hash del refresh token, no el token plano"]
+  ip_origen varchar(45)
+  agente_usuario text [note: "User-Agent del navegador o app"]
+  nombre_dispositivo text [note: "Opcional: Chrome Windows, iPhone, Android, etc."]
+  expira_en timestamptz [not null]
+  ultimo_uso_en timestamptz
+  revocada_en timestamptz
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    refresh_token_hash [unique]
+    usuario_id
+    expira_en
+    revocada_en
+  }
+
+  Note: '''
+  Representa una sesion real de autenticacion por dispositivo o navegador.
+  Permite manejar refresh tokens, cierre de sesion, revocacion e invalidacion
+  sin guardar tokens planos en la base de datos.
+  '''
+}
+
+Table catalogo_especialidades {
+  id int [pk]
+  nombre_especialidad varchar(120) [not null]
+  activa boolean [not null, default: true]
+  es_administrativa boolean [not null, default: false]
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    nombre_especialidad [unique]
+    activa
+  }
+
+  Note: '''
+  Catalogo cerrado de especialidades para que el usuario seleccione desde lista.
+  Esto evita variaciones de escritura.
+  Debe existir una fila como "Administracion del sistema" para el usuario admin,
+  asi perfiles_usuario.especialidad_id nunca queda nulo.
+  '''
+}
+
+Table perfiles_usuario {
+  id uuid [pk, default: `gen_random_uuid()`]
+  usuario_id uuid [not null, ref: > usuarios.id]
+  nombre_completo text [not null]
+  especialidad_id int [not null, ref: > catalogo_especialidades.id]
+  url_avatar text
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    usuario_id [unique]
+    especialidad_id
+  }
+
+  Note: '''
+  Perfil visible del usuario.
+  Aqui se guardan los datos solicitados en el registro:
+  nombre completo y especialidad elegida desde el catalogo.
+  '''
+}
+
+Table roles_usuario {
+  id uuid [pk, default: `gen_random_uuid()`]
+  usuario_id uuid [not null, ref: > usuarios.id]
+  rol rol_aplicacion [not null]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (usuario_id, rol) [unique]
+    usuario_id
+  }
+
+  Note: '''
+  Define si el usuario es doctor o administrador.
+  Los registros publicos crean usuarios con rol doctor por defecto.
+  '''
+}
+
+Table plantillas_anamnesis {
+  id uuid [pk, default: `gen_random_uuid()`]
+  especialidad_id int [not null, ref: > catalogo_especialidades.id]
+  nombre_plantilla text [not null]
+  numero_version int [not null, default: 1]
+  descripcion text [not null, default: '']
+  es_activa boolean [not null, default: true]
+  creada_por_id uuid [ref: > usuarios.id]
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (especialidad_id, numero_version) [unique]
+    especialidad_id
+    es_activa
+  }
+
+  Note: '''
+  Plantilla de anamnesis por especialidad.
+  En fase 1 todas las especialidades pueden iniciar con la misma estructura base.
+  Mas adelante se modifica la plantilla de una especialidad sin romper las consultas previas.
+  '''
+}
+
+Table secciones_plantilla_anamnesis {
+  id uuid [pk, default: `gen_random_uuid()`]
+  plantilla_anamnesis_id uuid [not null, ref: > plantillas_anamnesis.id]
+  seccion nombre_seccion [not null]
+  etiqueta_visible text [not null]
+  descripcion_ia text
+  orden int [not null]
+  es_obligatoria boolean [not null, default: false]
+  activa boolean [not null, default: true]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (plantilla_anamnesis_id, seccion) [unique]
+    (plantilla_anamnesis_id, orden) [unique]
+    plantilla_anamnesis_id
+    activa
+  }
+
+  Note: '''
+  Define las secciones de una plantilla de anamnesis.
+  Se usa el enum nombre_seccion para mantener la estructura comun inicial.
+  Si luego una especialidad requiere cambios, se crea nueva version de plantilla.
+  '''
+}
+
+Table pacientes {
+  id uuid [pk, default: `gen_random_uuid()`]
+  doctor_id uuid [not null, ref: > usuarios.id]
+  codigo_paciente varchar(40) [not null, default: `('PAC-' || upper(substr(gen_random_uuid()::text, 1, 8)))`, note: "Codigo interno para diferenciar pacientes aunque no se registre DNI"]
+  nombres_apellidos text [not null]
+  dni varchar(20)
+  edad int
+  ocupacion text
+  procedencia text
+  diagnostico_general text
+  ultima_visita timestamptz
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (doctor_id, codigo_paciente) [unique]
+    (doctor_id, dni) [unique]
+    doctor_id
+    nombres_apellidos
+  }
+
+  Note: '''
+  Catalogo minimo de pacientes de cada doctor para fase 1.
+  Se mantiene para distinguir pacientes entre consultas sin exigir un perfil clinico longitudinal.
+  codigo_paciente permite identificar registros cuando no se tiene DNI.
+  ultima_visita es un dato derivado o cache de la ultima consulta finalizada.
+  Si no existen consultas previas, puede quedar nulo.
+  '''
+}
+
+Table consultas {
+  id uuid [pk, default: `gen_random_uuid()`]
+  doctor_id uuid [not null, ref: > usuarios.id]
+  paciente_id uuid [not null, ref: > pacientes.id]
+  plantilla_anamnesis_id uuid [ref: > plantillas_anamnesis.id]
+  codigo_consulta varchar(40) [not null]
+  tipo_consulta tipo_consulta [not null, default: 'primera_consulta']
+  estado estado_consulta [not null, default: 'en_espera']
+  fecha_hora_consulta timestamptz
+  inicio_real timestamptz
+  fin_real timestamptz
+
+  transcripcion_completa text [note: "Texto consolidado generado a partir de los segmentos"]
+  version_transcripcion int [not null, default: 1]
+
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    codigo_consulta [unique]
+    doctor_id
+    paciente_id
+    plantilla_anamnesis_id
+    tipo_consulta
+    estado
+    fecha_hora_consulta
+  }
+
+  Note: '''
+  Entidad central del dominio clinico.
+  Representa una primera consulta de anamnesis en fase 1.
+  tipo_consulta queda listo para controles o seguimiento futuros, aunque inicialmente sea primera_consulta.
+  Desde aqui se relacionan segmentos, audio temporal, ejecuciones y ficha medica.
+  '''
+}
+
+Table audios_temporales_consulta {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id]
+  ruta_almacenamiento text [not null]
+  tipo_mime varchar(100)
+  duracion_ms int
+  tamano_bytes bigint
+  hash_archivo text
+  estado estado_audio_temporal [not null, default: 'pendiente_procesamiento']
+  motivo_conservacion text [note: "Ejemplo: procesamiento, depuracion, reintento, revision tecnica"]
+  expira_en timestamptz [not null]
+  borrado_en timestamptz
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    consulta_id
+    estado
+    expira_en
+  }
+
+  Note: '''
+  Audio temporal de una consulta.
+  No es almacenamiento permanente.
+  Se usa solo para procesamiento o depuracion corta y luego debe eliminarse automaticamente.
+  Un worker o tarea programada deberia borrar todo audio vencido.
+  '''
+}
+
+Table segmentos_transcripcion {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id]
+  numero_secuencia int [not null]
+  hablante tipo_hablante [not null, default: 'desconocido']
+  origen origen_transcripcion [not null, default: 'flujo_en_vivo']
+
+  inicio_ms int
+  fin_ms int
+  texto text [not null]
+  confianza decimal(5,4)
+  codigo_idioma varchar(10)
+  carga_cruda jsonb
+
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (consulta_id, numero_secuencia) [unique]
+    consulta_id
+    hablante
+  }
+
+  Note: '''
+  Transcripcion incremental de la consulta.
+  Cada fila representa un segmento pequeno ya convertido a texto.
+  Esto permite que la IA empiece a llenar la ficha antes de terminar toda la consulta.
+  '''
+}
+
+Table plantillas_agente {
+  id uuid [pk, default: `gen_random_uuid()`]
+  nombre_plantilla text [not null]
+  descripcion text [not null, default: '']
+  tipo tipo_agente [not null]
+  estado estado_agente [not null, default: 'activo']
+  especialidad_id int [ref: > catalogo_especialidades.id, note: "Null significa plantilla general para todas las especialidades"]
+
+  creada_por_id uuid [not null, ref: > usuarios.id]
+  visible_para_todos_los_doctores boolean [not null, default: true]
+
+  configuracion_base jsonb [not null, default: '{}']
+  documentos_referencia text[]
+  dependencias text[]
+
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    tipo
+    estado
+    especialidad_id
+    creada_por_id
+  }
+
+  Note: '''
+  Plantilla maestra de un agente.
+  Normalmente la crea un administrador.
+  Puede ser general o especifica para una especialidad.
+  '''
+}
+
+Table versiones_prompt_plantilla {
+  id uuid [pk, default: `gen_random_uuid()`]
+  plantilla_agente_id uuid [not null, ref: > plantillas_agente.id]
+  numero_version int [not null]
+
+  texto_prompt text [not null]
+  nombre_modelo varchar(100)
+  temperatura decimal(3,2)
+  configuracion_extra jsonb [not null, default: '{}']
+
+  es_activa boolean [not null, default: true]
+  creada_por_id uuid [not null, ref: > usuarios.id]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (plantilla_agente_id, numero_version) [unique]
+    plantilla_agente_id
+    es_activa
+  }
+
+  Note: '''
+  Historial del prompt base de cada plantilla de agente.
+  Sirve para saber exactamente con que instrucciones generales fue definido el agente.
+  '''
+}
+
+Table agentes_doctor {
+  id uuid [pk, default: `gen_random_uuid()`]
+  doctor_id uuid [not null, ref: > usuarios.id]
+  plantilla_agente_id uuid [not null, ref: > plantillas_agente.id]
+
+  nombre_visible text [note: "Nombre que vera el doctor en su interfaz"]
+  estado estado_agente [not null, default: 'activo']
+
+  editable_por_doctor boolean [not null, default: false]
+  usar_en_consulta_en_vivo boolean [not null, default: true]
+  usar_en_resumen_final boolean [not null, default: true]
+
+  prioridad int [not null, default: 1]
+  configuracion_sobrescrita jsonb
+  observaciones_admin text
+
+  asignado_por_id uuid [not null, ref: > usuarios.id]
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    doctor_id
+    plantilla_agente_id
+    estado
+    (doctor_id, plantilla_agente_id) [unique]
+  }
+
+  Note: '''
+  Representa la asignacion real de una plantilla a un doctor.
+  Aqui se controla la usabilidad del agente para ese medico:
+  si esta activo, si se usa en vivo, si el doctor puede personalizarlo
+  y si existe o no una configuracion sobrescrita.
+  '''
+}
+
+Table secciones_habilitadas_agente_doctor {
+  id uuid [pk, default: `gen_random_uuid()`]
+  agente_doctor_id uuid [not null, ref: > agentes_doctor.id]
+  seccion nombre_seccion [not null]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (agente_doctor_id, seccion) [unique]
+    agente_doctor_id
+  }
+
+  Note: '''
+  Define en que secciones de la ficha puede intervenir un agente asignado a un doctor.
+  Se usa tabla separada en vez de arreglo para evitar errores y mejorar integridad.
+  '''
+}
+
+Table versiones_prompt_doctor {
+  id uuid [pk, default: `gen_random_uuid()`]
+  agente_doctor_id uuid [not null, ref: > agentes_doctor.id]
+  numero_version int [not null]
+
+  texto_prompt text [not null]
+  nombre_modelo varchar(100)
+  temperatura decimal(3,2)
+  configuracion_extra jsonb [not null, default: '{}']
+
+  es_activa boolean [not null, default: true]
+  creada_por_id uuid [not null, ref: > usuarios.id]
+  origen origen_configuracion_agente [not null, default: 'doctor']
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (agente_doctor_id, numero_version) [unique]
+    agente_doctor_id
+    es_activa
+  }
+
+  Note: '''
+  Versiones de prompt personalizadas para un doctor.
+  Solo se usan cuando el medico o el administrador ajustan el comportamiento
+  del agente especificamente para ese doctor.
+  '''
+}
+
+Table ejecuciones_agente {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id]
+  agente_doctor_id uuid [not null, ref: > agentes_doctor.id]
+
+  version_prompt_plantilla_id uuid [ref: > versiones_prompt_plantilla.id]
+  version_prompt_doctor_id uuid [ref: > versiones_prompt_doctor.id]
+
+  tipo tipo_ejecucion [not null]
+  estado estado_ejecucion [not null, default: 'en_cola']
+
+  seccion_objetivo nombre_seccion [note: "Se usa cuando la ejecucion actualiza una seccion especifica"]
+  segmento_desde int [note: "Numero de secuencia inicial usado como entrada"]
+  segmento_hasta int [note: "Numero de secuencia final usado como entrada"]
+
+  nombre_modelo_usado varchar(100)
+  temperatura_usada decimal(3,2)
+
+  entrada_json jsonb
+  salida_json jsonb
+  salida_texto text
+
+  inicio_ejecucion timestamptz
+  fin_ejecucion timestamptz
+  latencia_ms int
+  mensaje_error text
+
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    consulta_id
+    agente_doctor_id
+    estado
+    seccion_objetivo
+  }
+
+  Note: '''
+  Registro de cada ejecucion real de IA durante la consulta.
+  Permite saber que agente corrio, con que prompt, sobre que segmentos
+  y que devolvio.
+  '''
+}
+
+Table fichas_medicas {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id, unique]
+  plantilla_anamnesis_id uuid [ref: > plantillas_anamnesis.id]
+
+  estado estado_ficha [not null, default: 'vacia']
+  esta_finalizada boolean [not null, default: false]
+  finalizada_en timestamptz
+
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Note: '''
+  Cabecera de la ficha medica derivada de una consulta.
+  Ya no duplica doctor_id ni paciente_id para evitar inconsistencias.
+  Esa informacion se obtiene desde la tabla consultas.
+  '''
+}
+
+Table secciones_ficha_medica {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ficha_medica_id uuid [not null, ref: > fichas_medicas.id]
+  seccion nombre_seccion [not null]
+
+  texto_sugerido_ia text [note: "Ultima sugerencia de IA pendiente o visible para comparacion"]
+  texto_actual text
+  estado estado_seccion [not null, default: 'vacia']
+  confianza decimal(5,4)
+
+  ultimo_origen_actualizacion origen_actualizacion [not null, default: 'sistema']
+  ultimo_usuario_id uuid [ref: > usuarios.id]
+  ultima_ejecucion_agente_id uuid [ref: > ejecuciones_agente.id]
+  revisada_por uuid [ref: > usuarios.id]
+  revisada_en timestamptz
+  bloqueada_por uuid [ref: > usuarios.id]
+  bloqueada_en timestamptz
+
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (ficha_medica_id, seccion) [unique]
+    ficha_medica_id
+    seccion
+    estado
+  }
+
+  Note: '''
+  Estado actual de cada parte de la anamnesis.
+  Esta tabla es la clave del llenado en vivo porque cada seccion puede actualizarse
+  sin reescribir toda la ficha medica.
+  '''
+}
+
+Table versiones_ficha_medica {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ficha_medica_id uuid [not null, ref: > fichas_medicas.id]
+  numero_version int [not null]
+  origen origen_actualizacion [not null]
+  ejecucion_agente_id uuid [ref: > ejecuciones_agente.id]
+  creado_por uuid [ref: > usuarios.id]
+
+  instantanea jsonb [not null, note: "Estado completo de todas las secciones en ese momento"]
+  resumen_cambios text
+
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (ficha_medica_id, numero_version) [unique]
+    ficha_medica_id
+  }
+
+  Note: '''
+  Versionado completo de la ficha medica.
+  Permite reconstruir como estaba la anamnesis en cualquier momento de la consulta.
+  '''
+}
+
+Table cambios_seccion_ficha {
+  id uuid [pk, default: `gen_random_uuid()`]
+  seccion_ficha_id uuid [not null, ref: > secciones_ficha_medica.id]
+  origen origen_actualizacion [not null]
+  ejecucion_agente_id uuid [ref: > ejecuciones_agente.id]
+  actualizado_por uuid [ref: > usuarios.id]
+
+  texto_anterior text
+  texto_nuevo text
+  texto_sugerido_ia text
+  distancia_edicion decimal(6,4) [note: "Medida normalizada de cuanto cambio el doctor frente a la sugerencia IA"]
+  duracion_edicion_ms int [note: "Tiempo aproximado que tomo revisar o editar la seccion"]
+  confianza decimal(5,4)
+
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    seccion_ficha_id
+    ejecucion_agente_id
+    origen
+  }
+
+  Note: '''
+  Historial fino de cambios por seccion.
+  Permite saber exactamente que cambio la IA, el doctor o el sistema en cada parte.
+  Tambien permite medir cuanto edita el doctor y cuanto tiempo le toma revisar.
+  '''
+}
+
+Table evidencias_seccion_ficha {
+  id uuid [pk, default: `gen_random_uuid()`]
+  seccion_ficha_id uuid [not null, ref: > secciones_ficha_medica.id]
+  segmento_transcripcion_id uuid [ref: > segmentos_transcripcion.id]
+  texto_evidencia text [not null]
+  confianza decimal(5,4)
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    seccion_ficha_id
+    segmento_transcripcion_id
+  }
+
+  Note: '''
+  Evidencia ligera que vincula una seccion de anamnesis con los segmentos que la sustentan.
+  Debe mostrarse de forma no estorbosa, por ejemplo como detalle desplegable o tooltip.
+  '''
+}
+
+Table eventos_consulta {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id]
+  tipo_evento varchar(60) [not null, note: "Ejemplo: transcripcion_iniciada, segmento_recibido, ejecucion_finalizada, seccion_revisada"]
+  carga_evento jsonb
+  creado_por uuid [ref: > usuarios.id]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    consulta_id
+    tipo_evento
+    creado_en
+  }
+
+  Note: '''
+  Bitacora operativa de la consulta.
+  Sirve para reconstruir el flujo tecnico y detectar cuellos de botella:
+  llegada de segmentos, ejecuciones, revisiones y finalizacion.
+  '''
+}
