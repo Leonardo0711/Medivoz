@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { RecordSummaryData, SectionMetaMap } from "@/hooks/medical-record/types";
 import { cn } from "@/lib/utils";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface MedicalRecordFormData {
   motivo_consulta: string;
@@ -142,6 +143,13 @@ const fields: FieldConfig[] = [
     rows: 4,
     wide: true,
   },
+];
+
+const fieldGroups: { id: string; label: string; fields: (keyof MedicalRecordFormData)[] }[] = [
+  { id: "cuadro", label: "Cuadro actual", fields: ["motivo_consulta", "tiempo_enfermedad", "forma_inicio", "curso_enfermedad"] },
+  { id: "historia", label: "Historia y sintomas", fields: ["historia_cronologica", "sintomas_principales"] },
+  { id: "contexto", label: "Antecedentes y estado basal", fields: ["antecedentes", "estado_funcional_basal"] },
+  { id: "apoyo", label: "Estudios y notas", fields: ["estudios_previos", "notas_adicionales"] },
 ];
 
 export const MedicalRecordForm = memo(function MedicalRecordForm({
@@ -375,7 +383,21 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{fields.map(renderField)}</div>
+      <Accordion type="multiple" defaultValue={["cuadro", "historia"]} className="space-y-2">
+        {fieldGroups.map((group) => {
+          const groupFields = fields.filter((item) => group.fields.includes(item.field));
+          const groupReviewed = groupFields.filter(({ field }) => isReviewed(field)).length;
+          const groupPending = groupFields.filter(({ field }) => hasPending(field)).length;
+          return (
+            <AccordionItem key={group.id} value={group.id} className="rounded-md border px-3">
+              <AccordionTrigger className="py-3 text-sm hover:no-underline">
+                <span className="flex items-center gap-2"><span>{group.label}</span><span className="text-xs font-normal text-muted-foreground">{groupReviewed}/{groupFields.length} validadas{groupPending ? ` · ${groupPending} pendientes IA` : ""}</span></span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3"><div className="grid grid-cols-1 gap-3 md:grid-cols-2">{groupFields.map(renderField)}</div></AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
 
       <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">

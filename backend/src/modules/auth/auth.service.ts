@@ -9,7 +9,7 @@ import {
   userRoles,
   specialities,
 } from "../../db/schema/auth.js";
-import { RegisterInput, LoginInput } from "./auth.schema.js";
+import { RegisterInput, LoginInput, CreateEvaluatorInput } from "./auth.schema.js";
 
 const registrationSpecialities = [
   "Neurologia",
@@ -48,7 +48,9 @@ export class AuthService {
 
     const rol = roles.some((r) => r.rol === "administrador")
       ? "administrador"
-      : "doctor";
+      : roles.some((r) => r.rol === "evaluador")
+        ? "evaluador"
+        : "doctor";
 
     const [profile] = await db
       .select({
@@ -147,6 +149,33 @@ export class AuthService {
       });
 
       return newUser;
+    });
+  }
+
+  async createEvaluator(input: CreateEvaluatorInput) {
+    const existing = await db.query.users.findFirst({ where: eq(users.email, input.email) });
+    if (existing) throw new Error("El correo ya esta registrado");
+
+    const evaluatorSpeciality = await db.query.specialities.findFirst({
+      where: and(eq(specialities.nombre, "Evaluacion clinica"), eq(specialities.esAdministrativa, true)),
+    });
+    if (!evaluatorSpeciality) {
+      throw new Error("Falta configurar la especialidad administrativa de evaluacion");
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    return db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({ email: input.email, passwordHash, estado: "activa" })
+        .returning();
+      await tx.insert(profiles).values({
+        userId: user.id,
+        nombreCompleto: input.nombreCompleto,
+        especialidadId: evaluatorSpeciality.id,
+      });
+      await tx.insert(userRoles).values({ userId: user.id, rol: "evaluador" });
+      return { id: user.id, email: user.email, nombreCompleto: input.nombreCompleto, rol: "evaluador" };
     });
   }
 

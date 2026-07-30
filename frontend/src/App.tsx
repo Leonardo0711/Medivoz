@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/auth/PrivateRoute";
+import { RoleRoute } from "./components/auth/RoleRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -24,6 +25,7 @@ const Session = lazy(() => import("./pages/Session"));
 const SessionHistory = lazy(() => import("./pages/SessionHistory"));
 const Agents = lazy(() => import("./pages/Agents"));
 const AgentDetail = lazy(() => import("./pages/AgentDetail"));
+const Evaluations = lazy(() => import("./pages/Evaluations"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback component with better UX
@@ -80,12 +82,17 @@ const App = () => {
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
                         <Route element={<PrivateRoute />}>
-                          <Route path="/dashboard" element={<Dashboard />} />
-                          <Route path="/patients" element={<Patients />} />
-                          <Route path="/session" element={<Session />} />
-                          <Route path="/history" element={<SessionHistory />} />
-                          <Route path="/agents" element={<Agents />} />
-                          <Route path="/agents/:id" element={<AgentDetail />} />
+                          <Route element={<RoleRoute allowedRoles={["doctor", "administrador"]} />}>
+                            <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/patients" element={<Patients />} />
+                            <Route path="/session" element={<Session />} />
+                            <Route path="/history" element={<SessionHistory />} />
+                            <Route path="/agents" element={<Agents />} />
+                            <Route path="/agents/:id" element={<AgentDetail />} />
+                          </Route>
+                          <Route element={<RoleRoute allowedRoles={["evaluador", "administrador"]} />}>
+                            <Route path="/evaluations" element={<Evaluations />} />
+                          </Route>
                         </Route>
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />

@@ -8,10 +8,15 @@ import {
 } from "./clinical.schema.js";
 import { convertSchema } from "../../core/utils/schema.js";
 import { logger } from "../../core/utils/logger.js";
+import { requireClinicalAccess } from "../../core/auth/roles.js";
 
 export async function clinicalRoutes(app: FastifyInstance) {
   // All routes in this module require authentication
-  app.addHook("onRequest", app.authenticate);
+  app.addHook("onRequest", async (request, reply) => {
+    await app.authenticate(request, reply);
+    if (reply.sent) return;
+    return requireClinicalAccess(request, reply);
+  });
 
   // --- Patients ---
 

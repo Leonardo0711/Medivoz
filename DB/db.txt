@@ -25,6 +25,7 @@ Project medivoz_vps_postgresql {
 
 Enum rol_aplicacion {
   doctor
+  evaluador
   administrador
 }
 
@@ -215,7 +216,7 @@ Table catalogo_especialidades {
   Note: '''
   Catalogo cerrado de especialidades para que el usuario seleccione desde lista.
   Esto evita variaciones de escritura.
-  Debe existir una fila como "Administracion del sistema" para el usuario admin,
+  Deben existir filas administrativas para el admin y el evaluador,
   asi perfiles_usuario.especialidad_id nunca queda nulo.
   '''
 }
@@ -805,5 +806,34 @@ Table eventos_consulta {
   Bitacora operativa de la consulta.
   Sirve para reconstruir el flujo tecnico y detectar cuellos de botella:
   llegada de segmentos, ejecuciones, revisiones y finalizacion.
+  '''
+}
+
+Table evaluaciones_pdqi9 {
+  id uuid [pk, default: `gen_random_uuid()`]
+  consulta_id uuid [not null, ref: > consultas.id]
+  evaluador_id uuid [ref: > usuarios.id]
+  nota_ia text [not null, note: "Instantanea del resumen Medivoz evaluado"]
+  nota_essi text [not null, note: "Nota pegada por el evaluador desde la plataforma ESSI"]
+  puntajes_ia jsonb [not null, note: "Nueve puntajes PDQI-9, de 1 a 5"]
+  puntajes_essi jsonb [not null, note: "Nueve puntajes PDQI-9, de 1 a 5"]
+  promedio_ia decimal(4,2) [not null]
+  promedio_essi decimal(4,2) [not null]
+  diferencia_promedio decimal(4,2) [not null, note: "Promedio IA menos promedio ESSI"]
+  comentarios text
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (consulta_id, evaluador_id) [unique]
+    consulta_id
+    evaluador_id
+  }
+
+  Note: '''
+  Evaluacion humana de calidad documental mediante PDQI-9.
+  El evaluador no graba ni edita la consulta: compara el resumen de Medivoz
+  contra la nota que el medico registro en ESSI. Las notas se guardan como
+  instantaneas para que los resultados sigan siendo reproducibles.
   '''
 }

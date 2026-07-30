@@ -7,6 +7,7 @@ import * as auth from "./schema/auth.js";
 import * as clinical from "./schema/clinical.js";
 import * as scribe from "./schema/scribe.js";
 import * as agents from "./schema/agents.js";
+import * as evaluations from "./schema/evaluations.js";
 
 export const schema = {
   ...enums,
@@ -14,6 +15,7 @@ export const schema = {
   ...clinical,
   ...scribe,
   ...agents,
+  ...evaluations,
 };
 
 const queryClient = postgres(env.DATABASE_URL);

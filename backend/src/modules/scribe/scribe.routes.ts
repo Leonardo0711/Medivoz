@@ -13,6 +13,7 @@ import { audioTemporalService } from "./audio-temporal.service.js";
 import { transcriptionSegmentService } from "./transcription-segment.service.js";
 import { enqueueClinicalExtraction } from "../../worker/clinical.queue.js";
 import { logger } from "../../core/utils/logger.js";
+import { requireClinicalAccess } from "../../core/auth/roles.js";
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
@@ -237,7 +238,11 @@ const transcribeWithAudioStaging = async (params: {
 };
 
 export async function scribeRoutes(app: FastifyInstance) {
-  app.addHook("onRequest", app.authenticate);
+  app.addHook("onRequest", async (request, reply) => {
+    await app.authenticate(request, reply);
+    if (reply.sent) return;
+    return requireClinicalAccess(request, reply);
+  });
 
   // POST /api/v1/scribe/save
   app.post(

@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { convertSchema } from "../../core/utils/schema.js";
 import { agentsService } from "./agents.service.js";
+import { requireClinicalAccess } from "../../core/auth/roles.js";
 
 const updateAgentSchema = z.object({
   nombre: z.string().min(1).optional(),
@@ -12,7 +13,11 @@ const updateAgentSchema = z.object({
 });
 
 export async function agentsRoutes(app: FastifyInstance) {
-  app.addHook("onRequest", app.authenticate);
+  app.addHook("onRequest", async (request, reply) => {
+    await app.authenticate(request, reply);
+    if (reply.sent) return;
+    return requireClinicalAccess(request, reply);
+  });
 
   app.get("/", async (request) => {
     const doctorId = (request.user as any).sub;

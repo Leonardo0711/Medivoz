@@ -21,6 +21,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TYPE rol_aplicacion AS ENUM (
   'doctor',
+  'evaluador',
   'administrador'
 );
 
@@ -612,6 +613,29 @@ CREATE TABLE eventos_consulta (
   creado_en timestamptz NOT NULL DEFAULT now()
 );
 
+-- =========================================================
+-- EVALUACION COMPARATIVA DE DOCUMENTACION
+-- =========================================================
+
+CREATE TABLE evaluaciones_pdqi9 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  consulta_id uuid NOT NULL REFERENCES consultas(id) ON DELETE CASCADE,
+  evaluador_id uuid REFERENCES usuarios(id) ON DELETE SET NULL,
+  nota_ia text NOT NULL,
+  nota_essi text NOT NULL,
+  puntajes_ia jsonb NOT NULL,
+  puntajes_essi jsonb NOT NULL,
+  promedio_ia numeric(4,2) NOT NULL CHECK (promedio_ia >= 1 AND promedio_ia <= 5),
+  promedio_essi numeric(4,2) NOT NULL CHECK (promedio_essi >= 1 AND promedio_essi <= 5),
+  diferencia_promedio numeric(4,2) NOT NULL CHECK (diferencia_promedio >= -4 AND diferencia_promedio <= 4),
+  comentarios text,
+  creado_en timestamptz NOT NULL DEFAULT now(),
+  actualizado_en timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT uq_evaluaciones_pdqi9_consulta_evaluador UNIQUE (consulta_id, evaluador_id)
+);
+
+COMMENT ON TABLE evaluaciones_pdqi9 IS 'Comparacion humana PDQI-9 entre el resumen de Medivoz y la nota pegada desde ESSI.';
+
 COMMENT ON TABLE eventos_consulta IS 'Bitacora operativa y tecnica de la consulta.';
 
 -- =========================================================
@@ -957,6 +981,7 @@ COMMENT ON FUNCTION fn_revocar_sesiones_usuario(uuid) IS
 
 INSERT INTO catalogo_especialidades (nombre_especialidad, activa, es_administrativa) VALUES
 ('Administracion del sistema', true, true),
+('Evaluacion clinica', true, true),
 ('Medicina general', false, false),
 ('Neurologia', true, false),
 ('Pediatria', false, false),

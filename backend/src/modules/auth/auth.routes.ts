@@ -1,7 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { authService } from "./auth.service.js";
-import { registerSchema, loginSchema, refreshTokenSchema } from "./auth.schema.js";
+import { registerSchema, loginSchema, refreshTokenSchema, createEvaluatorSchema } from "./auth.schema.js";
 import { convertSchema } from "../../core/utils/schema.js";
+import { requireRoles } from "../../core/auth/roles.js";
 
 export async function authRoutes(app: FastifyInstance) {
   app.get("/specialities", async () => authService.listSpecialities());
@@ -10,6 +11,19 @@ export async function authRoutes(app: FastifyInstance) {
     "/me",
     { onRequest: [app.authenticate] },
     async (request) => authService.getUserProfile((request.user as any).sub)
+  );
+
+  app.post(
+    "/evaluators",
+    { onRequest: [app.authenticate, requireRoles("administrador")], schema: { body: convertSchema(createEvaluatorSchema) } },
+    async (request, reply) => {
+      try {
+        const evaluator = await authService.createEvaluator(request.body as any);
+        return reply.code(201).send(evaluator);
+      } catch (error: any) {
+        return reply.code(400).send({ error: error?.message || "No se pudo crear el evaluador" });
+      }
+    }
   );
 
   // POST /api/v1/auth/register

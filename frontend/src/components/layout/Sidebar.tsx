@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Cpu,
   History,
   Home,
@@ -37,16 +38,20 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
-  const navItems = useMemo(
-    () => [
+  const navItems = useMemo(() => {
+    const evaluationItem = { name: "Evaluaciones", href: "/evaluations", icon: ClipboardCheck };
+    if (user?.rol === "evaluador") return [evaluationItem];
+    const clinicalItems = [
       { name: "Inicio", href: "/dashboard", icon: Home },
       { name: "Pacientes", href: "/patients", icon: Users },
       { name: "Consulta en vivo", href: "/session", icon: Mic },
       { name: "Historial", href: "/history", icon: History },
       { name: "Agentes IA", href: "/agents", icon: Cpu },
-    ],
-    []
-  );
+    ];
+    return user?.rol === "administrador" ? [...clinicalItems, evaluationItem] : clinicalItems;
+  }, [user?.rol]);
+
+  const homeHref = user?.rol === "evaluador" ? "/evaluations" : "/dashboard";
 
   useEffect(() => {
     setMobileOpen(false);
@@ -134,7 +139,7 @@ export function Sidebar() {
     return (
       <div className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
-          <Logo to="/dashboard" />
+          <Logo to={homeHref} />
           <div className="flex items-center gap-1">
             <ThemeToggleButton variant="ghost" size="sm" />
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -150,7 +155,7 @@ export function Sidebar() {
               >
                 <div className="flex h-full flex-col bg-background">
                   <div className="flex h-14 items-center justify-between border-b border-border/60 px-4">
-                    <Logo to="/dashboard" />
+                    <Logo to={homeHref} />
                     <ThemeToggleButton variant="ghost" size="sm" />
                   </div>
 
@@ -203,7 +208,7 @@ export function Sidebar() {
             collapsed ? "justify-center px-2" : "justify-between px-4"
           )}
         >
-          <Logo collapsed={collapsed} to="/dashboard" />
+          <Logo collapsed={collapsed} to={homeHref} />
           {!collapsed && (
             <ThemeToggleButton
               variant="ghost"
