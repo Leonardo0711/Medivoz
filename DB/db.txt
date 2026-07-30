@@ -42,6 +42,14 @@ Enum estado_consulta {
   cancelada
 }
 
+Enum estado_fase_anamnesis {
+  no_iniciada
+  en_anamnesis
+  probable_cierre
+  cerrada
+  reabierta
+}
+
 Enum tipo_consulta {
   primera_consulta
   control
@@ -343,6 +351,12 @@ Table consultas {
 
   transcripcion_completa text [note: "Texto consolidado generado a partir de los segmentos"]
   version_transcripcion int [not null, default: 1]
+  estado_anamnesis estado_fase_anamnesis [not null, default: 'no_iniciada', note: "Fase detectada automaticamente para saber si la anamnesis sigue abierta o probablemente termino"]
+  segmento_inicio_anamnesis int
+  segmento_fin_anamnesis int
+  confianza_cierre_anamnesis decimal(5,4)
+  motivo_cierre_anamnesis text
+  anamnesis_detectada_en timestamptz
 
   creado_en timestamptz [not null, default: `now()`]
   actualizado_en timestamptz [not null, default: `now()`]
@@ -354,6 +368,7 @@ Table consultas {
     plantilla_anamnesis_id
     tipo_consulta
     estado
+    estado_anamnesis
     fecha_hora_consulta
   }
 
@@ -519,7 +534,7 @@ Table agentes_doctor {
 
 Table secciones_habilitadas_agente_doctor {
   id uuid [pk, default: `gen_random_uuid()`]
-  agente_doctor_id uuid [not null, ref: > agentes_doctor.id]
+  agente_doctor_id uuid [ref: > agentes_doctor.id]
   seccion nombre_seccion [not null]
   creado_en timestamptz [not null, default: `now()`]
 
@@ -565,7 +580,7 @@ Table versiones_prompt_doctor {
 Table ejecuciones_agente {
   id uuid [pk, default: `gen_random_uuid()`]
   consulta_id uuid [not null, ref: > consultas.id]
-  agente_doctor_id uuid [not null, ref: > agentes_doctor.id]
+  agente_doctor_id uuid [ref: > agentes_doctor.id, note: "Puede quedar nulo para conservar la auditoria si se elimina la asignacion del agente"]
 
   version_prompt_plantilla_id uuid [ref: > versiones_prompt_plantilla.id]
   version_prompt_doctor_id uuid [ref: > versiones_prompt_doctor.id]
@@ -583,6 +598,11 @@ Table ejecuciones_agente {
   entrada_json jsonb
   salida_json jsonb
   salida_texto text
+
+  tokens_entrada int
+  tokens_salida int
+  tokens_total int
+  costo_estimado_usd decimal(10,6)
 
   inicio_ejecucion timestamptz
   fin_ejecucion timestamptz
@@ -611,6 +631,8 @@ Table fichas_medicas {
   plantilla_anamnesis_id uuid [ref: > plantillas_anamnesis.id]
 
   estado estado_ficha [not null, default: 'vacia']
+  resumen_sugerido_ia text [note: "Resumen narrativo unico generado por IA para copiar a la plataforma oficial"]
+  resumen_actual text [note: "Resumen narrativo unico aceptado o editado por el doctor"]
   esta_finalizada boolean [not null, default: false]
   finalizada_en timestamptz
 
@@ -631,8 +653,11 @@ Table secciones_ficha_medica {
 
   texto_sugerido_ia text [note: "Ultima sugerencia de IA pendiente o visible para comparacion"]
   texto_actual text
+  resumen_sugerido_ia text [note: "Parrafo narrativo generado por IA para copiar a la plataforma oficial"]
+  resumen_actual text [note: "Parrafo narrativo aceptado/editado por el doctor"]
   estado estado_seccion [not null, default: 'vacia']
   confianza decimal(5,4)
+  origen_dato varchar(40) [note: "referido_paciente, dicho_familiar, indicado_medico o no_determinado"]
 
   ultimo_origen_actualizacion origen_actualizacion [not null, default: 'sistema']
   ultimo_usuario_id uuid [ref: > usuarios.id]
@@ -683,16 +708,45 @@ Table versiones_ficha_medica {
   '''
 }
 
+Table sesiones_edicion_ficha {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ficha_medica_id uuid [not null, ref: > fichas_medicas.id]
+  doctor_id uuid [ref: > usuarios.id]
+  estado varchar(20) [not null, default: 'activa', note: "activa, pausada o completada"]
+  iniciado_en timestamptz [not null, default: `now()`]
+  ultima_actividad_en timestamptz [not null, default: `now()`]
+  finalizado_en timestamptz
+  duracion_activa_ms int [not null, default: 0, note: "Tiempo efectivo; excluye la inactividad detectada por la interfaz"]
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (ficha_medica_id, iniciado_en)
+    (doctor_id, iniciado_en)
+  }
+
+  Note: '''
+  Una sesion empieza cuando el doctor modifica por primera vez la anamnesis.
+  Permite medir revisiones posteriores a la consulta sin confundirlas con el tiempo de espera.
+  La VPS tambien aplica un indice unico parcial: solo puede existir una sesion activa por ficha y doctor.
+  '''
+}
+
 Table cambios_seccion_ficha {
   id uuid [pk, default: `gen_random_uuid()`]
   seccion_ficha_id uuid [not null, ref: > secciones_ficha_medica.id]
   origen origen_actualizacion [not null]
   ejecucion_agente_id uuid [ref: > ejecuciones_agente.id]
   actualizado_por uuid [ref: > usuarios.id]
+  sesion_edicion_id uuid [ref: > sesiones_edicion_ficha.id]
 
   texto_anterior text
   texto_nuevo text
   texto_sugerido_ia text
+  resumen_anterior text
+  resumen_nuevo text
+  resumen_sugerido_ia text
+  origen_dato varchar(40)
   distancia_edicion decimal(6,4) [note: "Medida normalizada de cuanto cambio el doctor frente a la sugerencia IA"]
   duracion_edicion_ms int [note: "Tiempo aproximado que tomo revisar o editar la seccion"]
   confianza decimal(5,4)
@@ -702,6 +756,7 @@ Table cambios_seccion_ficha {
   Indexes {
     seccion_ficha_id
     ejecucion_agente_id
+    sesion_edicion_id
     origen
   }
 
@@ -718,6 +773,7 @@ Table evidencias_seccion_ficha {
   segmento_transcripcion_id uuid [ref: > segmentos_transcripcion.id]
   texto_evidencia text [not null]
   confianza decimal(5,4)
+  origen_dato varchar(40)
   creado_en timestamptz [not null, default: `now()`]
 
   Indexes {

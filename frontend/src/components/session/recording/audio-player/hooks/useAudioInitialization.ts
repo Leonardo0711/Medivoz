@@ -14,6 +14,7 @@ export function useAudioInitialization(
 
   useEffect(() => {
     let isMounted = true;
+    const audioElement = audioRef.current;
     
     const initializeAudio = async () => {
       setIsLoaded(false);
@@ -32,14 +33,14 @@ export function useAudioInitialization(
         
         if (preloadedAudio) {
           // Clean up any existing audio element
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = "";
-            audioRef.current.load();
+          if (audioElement) {
+            audioElement.pause();
+            audioElement.src = "";
+            audioElement.load();
             
             // For existing element, we can update its properties
-            audioRef.current.src = audioURL;
-            audioRef.current.preload = "auto";
+            audioElement.src = audioURL;
+            audioElement.preload = "auto";
           } else {
             // If there's no audio element in the ref, we create one
             // but we can't directly assign to audioRef.current as it's read-only
@@ -48,10 +49,10 @@ export function useAudioInitialization(
           }
           
           // Configure audio element events if it exists
-          if (audioRef.current) {
-            audioRef.current.addEventListener("timeupdate", handleTimeUpdate);
-            audioRef.current.addEventListener("ended", handleEnded);
-            audioRef.current.addEventListener("error", handleError);
+          if (audioElement) {
+            audioElement.addEventListener("timeupdate", handleTimeUpdate);
+            audioElement.addEventListener("ended", handleEnded);
+            audioElement.addEventListener("error", handleError);
             
             setIsLoaded(true);
             console.log("Audio player initialized with URL:", audioURL);
@@ -78,16 +79,16 @@ export function useAudioInitialization(
       isMounted = false;
       
       // Clean up the audio element
-      if (audioRef.current) {
-        audioRef.current.removeEventListener("timeupdate", handleTimeUpdate);
-        audioRef.current.removeEventListener("ended", handleEnded);
-        audioRef.current.removeEventListener("error", handleError);
-        audioRef.current.pause();
-        audioRef.current.src = "";
-        audioRef.current.load();
+      if (audioElement) {
+        audioElement.removeEventListener("timeupdate", handleTimeUpdate);
+        audioElement.removeEventListener("ended", handleEnded);
+        audioElement.removeEventListener("error", handleError);
+        audioElement.pause();
+        audioElement.src = "";
+        audioElement.load();
       }
     };
-  }, [audioURL]);
+  }, [audioRef, audioURL, handleEnded, handleError, handleTimeUpdate]);
 
   return { isLoaded };
 }

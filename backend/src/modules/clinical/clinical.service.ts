@@ -1,6 +1,9 @@
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { consultations, patients } from "../../db/schema/clinical.js";
+import { profiles } from "../../db/schema/auth.js";
+import { anamnesisTemplates, consultations, patients, temporalAudios } from "../../db/schema/clinical.js";
+import { logger } from "../../core/utils/logger.js";
+import { audioTemporalService } from "../scribe/audio-temporal.service.js";
 
 const buildConsultationCode = () => {
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -12,6 +15,11 @@ const normalizeQueryText = (value: unknown): string => {
   return value.trim();
 };
 
+const buildPatientCode = () => {
+  const random = Math.random().toString(36).slice(2, 10).toUpperCase();
+  return `PAC-${random}`.slice(0, 40);
+};
+
 export class ClinicalService {
   async listPatients(doctorId: string, query?: unknown) {
     const trimmedQuery = normalizeQueryText(query);
@@ -21,7 +29,8 @@ export class ClinicalService {
       conditions.push(
         or(
           ilike(patients.nombre, `%${trimmedQuery}%`),
-          ilike(patients.dni, `%${trimmedQuery}%`)
+          ilike(patients.dni, `%${trimmedQuery}%`),
+          ilike(patients.codigoPaciente, `%${trimmedQuery}%`)
         )!
       );
     }
@@ -42,19 +51,16 @@ export class ClinicalService {
   }
 
   async createPatient(doctorId: string, data: any) {
-    const dni = data.dni ?? data.identificacion;
-    if (!dni) throw new Error("El DNI del paciente es obligatorio");
+    const dni = normalizeQueryText(data.dni) || null;
 
     const [newPatient] = await db
       .insert(patients)
       .values({
         doctorId,
+        codigoPaciente: buildPatientCode(),
         nombre: data.nombre,
         dni,
         edad: data.edad ?? null,
-        ocupacion: data.ocupacion ?? data.metadata?.ocupacion ?? null,
-        procedencia: data.procedencia ?? data.metadata?.procedencia ?? null,
-        diagnostico: data.diagnostico ?? data.metadata?.diagnostico ?? null,
       })
       .returning();
 
@@ -67,19 +73,8 @@ export class ClinicalService {
     };
 
     if (data.nombre !== undefined) updateValues.nombre = data.nombre;
-    if (data.dni !== undefined || data.identificacion !== undefined) {
-      updateValues.dni = data.dni ?? data.identificacion;
-    }
+    if (data.dni !== undefined) updateValues.dni = normalizeQueryText(data.dni) || null;
     if (data.edad !== undefined) updateValues.edad = data.edad;
-    if (data.ocupacion !== undefined || data.metadata?.ocupacion !== undefined) {
-      updateValues.ocupacion = data.ocupacion ?? data.metadata?.ocupacion ?? null;
-    }
-    if (data.procedencia !== undefined || data.metadata?.procedencia !== undefined) {
-      updateValues.procedencia = data.procedencia ?? data.metadata?.procedencia ?? null;
-    }
-    if (data.diagnostico !== undefined || data.metadata?.diagnostico !== undefined) {
-      updateValues.diagnostico = data.diagnostico ?? data.metadata?.diagnostico ?? null;
-    }
 
     const [updated] = await db
       .update(patients)
@@ -92,12 +87,43 @@ export class ClinicalService {
   }
 
   async deletePatient(id: string, doctorId: string) {
-    const [deleted] = await db
-      .delete(patients)
-      .where(and(eq(patients.id, id), eq(patients.doctorId, doctorId)))
-      .returning();
+    const patient = await db.query.patients.findFirst({
+      where: and(eq(patients.id, id), eq(patients.doctorId, doctorId)),
+    });
+    if (!patient) throw new Error("Paciente no encontrado o no autorizado");
 
-    if (!deleted) throw new Error("Paciente no encontrado o no autorizado");
+    const audioRows = await db
+      .select({ rutaArchivo: temporalAudios.rutaArchivo })
+      .from(temporalAudios)
+      .innerJoin(consultations, eq(temporalAudios.consultaId, consultations.id))
+      .where(eq(consultations.pacienteId, patient.id));
+
+    const deleted = await db.transaction(async (tx) => {
+      await tx.delete(consultations).where(eq(consultations.pacienteId, patient.id));
+      const [deletedPatient] = await tx
+        .delete(patients)
+        .where(and(eq(patients.id, patient.id), eq(patients.doctorId, doctorId)))
+        .returning();
+      if (!deletedPatient) throw new Error("Paciente no encontrado o no autorizado");
+      return deletedPatient;
+    });
+
+    const cleanupResults = await Promise.allSettled(
+      audioRows.map(({ rutaArchivo }) => audioTemporalService.deletePhysicalFile(rutaArchivo))
+    );
+    const failedAudioCleanup = cleanupResults.filter((result) => result.status === "rejected").length;
+    logger.info("[clinical] patient:deleted", {
+      patientId: patient.id,
+      doctorId,
+      audioFiles: audioRows.length,
+      failedAudioCleanup,
+    });
+    if (failedAudioCleanup > 0) {
+      logger.warn("[clinical] patient:audio-cleanup-incomplete", {
+        patientId: patient.id,
+        failedAudioCleanup,
+      });
+    }
     return deleted;
   }
 
@@ -123,13 +149,17 @@ export class ClinicalService {
 
   async createConsultation(doctorId: string, data: any) {
     await this.getPatientById(data.pacienteId, doctorId);
+    const plantillaAnamnesisId =
+      data.plantillaAnamnesisId ?? (await this.getDefaultAnamnesisTemplateId(doctorId));
 
     const [newConsultation] = await db
       .insert(consultations)
       .values({
         doctorId,
         pacienteId: data.pacienteId,
+        plantillaAnamnesisId,
         codigoSesion: buildConsultationCode(),
+        tipoConsulta: data.tipoConsulta ?? "primera_consulta",
         estado: data.estado ?? "en_espera",
         fecha: data.fecha ? new Date(data.fecha) : new Date(),
       })
@@ -147,6 +177,10 @@ export class ClinicalService {
     };
 
     if (data.estado !== undefined) updateValues.estado = data.estado;
+    if (data.plantillaAnamnesisId !== undefined) {
+      updateValues.plantillaAnamnesisId = data.plantillaAnamnesisId || null;
+    }
+    if (data.tipoConsulta !== undefined) updateValues.tipoConsulta = data.tipoConsulta;
     if (data.fecha !== undefined) updateValues.fecha = data.fecha ? new Date(data.fecha) : null;
     if (data.inicioReal !== undefined) {
       updateValues.inicioReal = data.inicioReal ? new Date(data.inicioReal) : null;
@@ -174,6 +208,26 @@ export class ClinicalService {
     }
 
     return updated;
+  }
+
+  async getDefaultAnamnesisTemplateId(doctorId: string) {
+    const profile = await db.query.profiles.findFirst({
+      columns: { especialidadId: true },
+      where: eq(profiles.userId, doctorId),
+    });
+
+    if (!profile?.especialidadId) return null;
+
+    const template = await db.query.anamnesisTemplates.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(anamnesisTemplates.especialidadId, profile.especialidadId),
+        eq(anamnesisTemplates.esActiva, true)
+      ),
+      orderBy: [desc(anamnesisTemplates.numeroVersion)],
+    });
+
+    return template?.id ?? null;
   }
 }
 

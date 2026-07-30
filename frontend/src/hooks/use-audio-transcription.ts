@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { blobToBase64 } from "@/utils/audio";
 import { logger } from "@/utils/logger";
-import api from "@/lib/api";
+import api, { getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 
 interface UseAudioTranscriptionProps {
   onTranscriptionComplete?: (transcription: string) => void;
@@ -12,6 +12,11 @@ interface UseAudioTranscriptionResult {
   isTranscribing: boolean;
   transcribeAudio: (audioBlob: Blob, options?: { consultaId?: string | null }) => Promise<string>;
 }
+
+type TranscriptionResponse = {
+  formattedTranscription?: string;
+  rawTranscription?: { text?: string };
+};
 
 const extFromMime = (mimeType: string): string => {
   if (mimeType.includes("wav")) return "wav";
@@ -66,7 +71,7 @@ export function useAudioTranscription({
       const mimeType = audioBlob.type || "audio/webm";
       const filename = `consulta.${extFromMime(mimeType)}`;
       const consultaId = options?.consultaId || undefined;
-      let data: any = null;
+      let data: TranscriptionResponse | null = null;
 
       try {
         const headers: Record<string, string> = {
@@ -80,9 +85,9 @@ export function useAudioTranscription({
           headers,
           timeout: 240000,
         });
-        data = response.data;
-      } catch (binaryUploadError: any) {
-        const status = binaryUploadError?.response?.status;
+        data = response.data as TranscriptionResponse;
+      } catch (binaryUploadError: unknown) {
+        const status = getApiErrorStatus(binaryUploadError);
 
         if (status !== 404 && status !== 415) {
           throw binaryUploadError;
@@ -107,7 +112,7 @@ export function useAudioTranscription({
             timeout: 240000,
           }
         );
-        data = fallbackResponse.data;
+        data = fallbackResponse.data as TranscriptionResponse;
       }
 
       logger.log("Transcription data received:", data ? "yes" : "no");
@@ -122,9 +127,8 @@ export function useAudioTranscription({
       return transcription;
     } catch (error) {
       logger.error("Transcription error:", error);
-      const err = error as any;
-      const status = err?.response?.status;
-      const message = err?.response?.data?.error || err?.message || "Error al transcribir el audio";
+      const status = getApiErrorStatus(error);
+      const message = getApiErrorMessage(error, "Error al transcribir el audio");
 
       if (status === 413) {
         toast.error("El audio es demasiado grande para procesarlo. Reduce la duracion o comprime el archivo.");

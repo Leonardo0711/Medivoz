@@ -1,31 +1,57 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Mail, User } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Mail, Stethoscope, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AuthShell } from "@/components/auth/AuthShell";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 import { logger } from "@/utils/logger";
+import { formatSpecialityName } from "@/utils/speciality";
 
 export function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [specialityId, setSpecialityId] = useState("");
+  const [specialities, setSpecialities] = useState<Array<{ id: number; nombre: string }>>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    api
+      .get("/auth/specialities")
+      .then((response) => setSpecialities(response.data || []))
+      .catch((error) => {
+        logger.error("Error loading specialities:", error);
+        toast.error("No se pudieron cargar las especialidades");
+      });
+  }, []);
+
   const passwordStatus = useMemo(() => {
     if (!password) {
-      return { message: "Usa al menos 8 caracteres para mayor seguridad.", state: "neutral" as const };
+      return {
+        message: "Usa al menos 8 caracteres para mayor seguridad.",
+        state: "neutral" as const,
+      };
     }
 
     if (password.length < 8) {
-      return { message: "La contrasena es corta. Se recomienda minimo 8 caracteres.", state: "weak" as const };
+      return {
+        message: "La contrasena es corta. Se recomienda minimo 8 caracteres.",
+        state: "weak" as const,
+      };
     }
 
     const hasMix = /[A-Z]/.test(password) && /[a-z]/.test(password);
@@ -36,7 +62,10 @@ export function SignupForm() {
       return { message: "Contrasena solida.", state: "strong" as const };
     }
 
-    return { message: "Buen avance. Agrega numeros y simbolos para fortalecerla.", state: "medium" as const };
+    return {
+      message: "Buen avance. Agrega numeros y simbolos para fortalecerla.",
+      state: "medium" as const,
+    };
   }, [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,8 +76,13 @@ export function SignupForm() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error("La contrasena debe tener al menos 6 caracteres");
+    if (password.length < 8) {
+      toast.error("La contrasena debe tener al menos 8 caracteres");
+      return;
+    }
+
+    if (!specialityId) {
+      toast.error("Selecciona tu especialidad");
       return;
     }
 
@@ -59,14 +93,14 @@ export function SignupForm() {
         email: email.trim().toLowerCase(),
         password,
         nombreCompleto: name.trim(),
+        especialidadId: Number(specialityId),
       });
 
       toast.success("Registro completado. Ya puedes iniciar sesion.");
       navigate("/login");
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Error during signup:", err);
-      const message = err.response?.data?.error || "No se pudo completar el registro";
-      toast.error(message);
+      toast.error(getApiErrorMessage(err, "No se pudo completar el registro"));
     } finally {
       setIsLoading(false);
     }
@@ -101,6 +135,30 @@ export function SignupForm() {
               autoComplete="name"
               required
             />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="speciality" className="text-sm font-medium">
+            Especialidad
+          </Label>
+          <div className="relative">
+            <Stethoscope className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Select value={specialityId} onValueChange={setSpecialityId} required>
+              <SelectTrigger
+                id="speciality"
+                className="h-12 border-primary/20 bg-background pl-10 shadow-sm transition-colors hover:border-primary/40"
+              >
+                <SelectValue placeholder="Selecciona tu especialidad" />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg border-border/70 shadow-xl">
+                {specialities.map((speciality) => (
+                  <SelectItem key={speciality.id} value={String(speciality.id)} className="py-2.5">
+                    {formatSpecialityName(speciality.nombre)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -194,7 +252,11 @@ export function SignupForm() {
           </div>
         </div>
 
-        <Button type="submit" className="mt-2 h-12 w-full text-sm font-semibold" disabled={isLoading}>
+        <Button
+          type="submit"
+          className="mt-2 h-12 w-full text-sm font-semibold"
+          disabled={isLoading}
+        >
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

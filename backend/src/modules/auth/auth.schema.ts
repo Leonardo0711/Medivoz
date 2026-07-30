@@ -4,7 +4,7 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   nombreCompleto: z.string().min(3),
-  especialidadId: z.union([z.number(), z.string()]).optional(),
+  especialidadId: z.union([z.number().int().min(1), z.string().min(1)]),
 });
 
 export const loginSchema = z.object({

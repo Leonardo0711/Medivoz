@@ -1,6 +1,5 @@
 
 import { formatTime } from "../audio-player/utils";
-import { Slider } from "@/components/ui/slider";
 
 interface ProgressBarProps {
   currentTime: number;

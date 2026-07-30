@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthShell } from "@/components/auth/AuthShell";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 import { logger } from "@/utils/logger";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -37,10 +37,9 @@ export function LoginForm() {
       setUser(user);
       toast.success("Inicio de sesion exitoso");
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Error during login:", err);
-      const message = err.response?.data?.error || "No se pudo iniciar sesion";
-      toast.error(message);
+      toast.error(getApiErrorMessage(err, "No se pudo iniciar sesion"));
     } finally {
       setIsLoading(false);
     }

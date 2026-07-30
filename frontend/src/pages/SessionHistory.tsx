@@ -25,7 +25,8 @@ interface ConsultationApi {
 interface PatientApi {
   id: string;
   nombre: string;
-  dni: string;
+  dni: string | null;
+  codigoPaciente?: string | null;
   edad: number | null;
 }
 
@@ -37,7 +38,8 @@ interface SessionWithPatient {
   pacientes: {
     id: string;
     nombre: string;
-    dni: string;
+    dni: string | null;
+    codigoPaciente?: string | null;
     edad: number | null;
   };
 }
@@ -76,6 +78,7 @@ export default function SessionHistory() {
               id: patient.id,
               nombre: patient.nombre,
               dni: patient.dni,
+              codigoPaciente: patient.codigoPaciente,
               edad: patient.edad,
             },
           } as SessionWithPatient;
@@ -94,7 +97,8 @@ export default function SessionHistory() {
     return sessions.filter((session) => {
       return (
         session.pacientes?.nombre?.toLowerCase().includes(term) ||
-        session.pacientes?.dni?.includes(term) ||
+        session.pacientes?.dni?.toLowerCase().includes(term) ||
+        session.pacientes?.codigoPaciente?.toLowerCase().includes(term) ||
         session.codigo_sesion?.toLowerCase().includes(term)
       );
     });
@@ -183,6 +187,12 @@ export default function SessionHistory() {
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             DNI: {session.pacientes.dni}
+                          </span>
+                        )}
+                        {!session.pacientes?.dni && session.pacientes?.codigoPaciente && (
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            Codigo: {session.pacientes.codigoPaciente}
                           </span>
                         )}
                       </div>

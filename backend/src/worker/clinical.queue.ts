@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { redisConnection } from "../config/redis.js";
+import { logger } from "../core/utils/logger.js";
 
 export type ClinicalExtractionJobData = {
   consultaId: string;
@@ -44,15 +45,29 @@ const upsertQueueJob = async (
   jobId: string,
   payload: ClinicalExtractionJobData
 ): Promise<{ queued: boolean; coalesced: boolean; jobId: string; state: string }> => {
+  logger.info("[clinical-queue] upsert:start", {
+    jobId,
+    consultaId: payload.consultaId,
+    section: payload.seccionObjetivo || "all",
+    segmentoDesde: payload.segmentoDesde || null,
+    segmentoHasta: payload.segmentoHasta || null,
+    trigger: payload.trigger || "unknown",
+  });
   const existing = await clinicalExtractionQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
     if (state === "waiting" || state === "delayed" || state === "prioritized") {
       await existing.updateData(mergeJobData(existing.data, payload));
+      logger.info("[clinical-queue] upsert:coalesced", { jobId, state });
       return { queued: false, coalesced: true, jobId, state };
     }
     if (state === "active") {
+      logger.info("[clinical-queue] upsert:active-existing", { jobId, state });
       return { queued: false, coalesced: false, jobId, state };
+    }
+    if (state === "completed" || state === "failed") {
+      await existing.remove();
+      logger.info("[clinical-queue] upsert:removed-finished-existing", { jobId, state });
     }
   }
 
@@ -64,6 +79,7 @@ const upsertQueueJob = async (
     removeOnFail: 200,
   });
 
+  logger.info("[clinical-queue] upsert:queued", { jobId });
   return { queued: true, coalesced: false, jobId, state: "queued" };
 };
 
@@ -76,6 +92,9 @@ export const enqueueClinicalExtraction = async (payload: ClinicalExtractionJobDa
     return firstAttempt;
   }
 
+  logger.info("[clinical-queue] enqueue:active-primary-using-pending", {
+    consultaId: payload.consultaId,
+    section,
+  });
   return upsertQueueJob(`${baseJobId}:pending`, payload);
 };
-

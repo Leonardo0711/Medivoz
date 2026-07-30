@@ -1,4 +1,3 @@
-
 import { AudioPlayer } from "./recording/AudioPlayer";
 import { ControlButtons } from "./recording/ControlButtons";
 import { RecordingStatus } from "./recording/RecordingStatus";
@@ -14,9 +13,7 @@ interface RecordingControlsProps {
   sessionId: string;
   recordingTime: number;
   permissionDenied: boolean;
-  onRequestPermission: () => Promise<boolean>;
-  onGenerateSessionId: () => void;
-  onStartRecording: () => void;
+  onStartRecording: () => Promise<void>;
   onPauseRecording: () => void;
   onResumeRecording: () => void;
   onStopRecording: () => void;
@@ -32,31 +29,26 @@ export function RecordingControls({
   sessionId,
   recordingTime,
   permissionDenied,
-  onRequestPermission,
-  onGenerateSessionId,
   onStartRecording,
   onPauseRecording,
   onResumeRecording,
-  onStopRecording
+  onStopRecording,
 }: RecordingControlsProps) {
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-md mx-auto">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6">
       <ControlButtons
         isRecording={isRecording}
         isPaused={isPaused}
         isTranscribing={isTranscribing}
         isPatientSelected={isPatientSelected}
         audioURL={audioURL}
-        sessionId={sessionId}
         permissionDenied={permissionDenied}
-        onRequestPermission={onRequestPermission}
-        onGenerateSessionId={onGenerateSessionId}
         onStartRecording={onStartRecording}
         onPauseRecording={onPauseRecording}
         onResumeRecording={onResumeRecording}
         onStopRecording={onStopRecording}
       />
-      
+
       {isRecording && (
         <div className="w-full">
           <RecordingStatus
@@ -67,17 +59,14 @@ export function RecordingControls({
             recordingTime={recordingTime}
             audioURL={audioURL}
           />
-          <div className="p-2 bg-muted/30 rounded-md">
+          <div className="rounded-md bg-muted/30 p-2">
             <Waveform data={audioWaveform} height={40} isActive={!isPaused} />
           </div>
         </div>
       )}
-      
-      <AudioPlayer 
-        audioURL={audioURL} 
-        isVisible={!isRecording && !isTranscribing && !!audioURL} 
-      />
-      
+
+      <AudioPlayer audioURL={audioURL} isVisible={!isRecording && !isTranscribing && !!audioURL} />
+
       {!isRecording && (
         <RecordingStatus
           isRecording={isRecording}

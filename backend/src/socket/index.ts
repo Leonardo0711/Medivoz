@@ -1,12 +1,12 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { FastifyInstance } from "fastify";
 import { Server, Socket } from "socket.io";
 import { logger } from "../core/utils/logger.js";
 import { db } from "../db/index.js";
 import { consultations } from "../db/schema/clinical.js";
-import { transcriptionSegments } from "../db/schema/scribe.js";
 import { env } from "../config/env.js";
 import { OpenAIRealtimeService } from "../modules/scribe/openai-realtime.service.js";
+import { transcriptionSegmentService } from "../modules/scribe/transcription-segment.service.js";
 import { enqueueClinicalExtraction } from "../worker/clinical.queue.js";
 
 type SocketUser = {
@@ -21,16 +21,23 @@ type RuntimeSession = {
   persistChain: Promise<void>;
   idleTimer: NodeJS.Timeout | null;
   createdAt: number;
+  lastSegmentEndMs: number;
+  lastAudioEndMs: number;
   bufferedCharsSinceQueue: number;
   lastQueuedSequence: number;
   lastQueueAt: number;
+  audioChunksReceived: number;
 };
 
 type JoinPayload = string | { consultaId: string };
 
 type AudioChunkPayload = {
   consultaId: string;
-  chunk: string;
+  chunk: string | Buffer | ArrayBuffer | number[];
+  startMs?: number;
+  endMs?: number;
+  encoding?: "pcm16";
+  sampleRate?: number;
 };
 
 type StopPayload = {
@@ -38,6 +45,8 @@ type StopPayload = {
 };
 
 const runtimeSessions = new Map<string, RuntimeSession>();
+const pendingRuntimeSessions = new Map<string, Promise<RuntimeSession>>();
+const realtimeFailureNotifiedAt = new Map<string, number>();
 const IDLE_SESSION_TTL_MS = Math.max(
   30_000,
   Number.parseInt(process.env.REALTIME_IDLE_SESSION_TTL_MS ?? "300000", 10) || 300000
@@ -75,57 +84,40 @@ const getDoctorConsultation = async (consultaId: string, doctorId: string) => {
 };
 
 const fetchPersistedTranscript = async (consultaId: string) => {
-  const rows = await db
-    .select({ texto: transcriptionSegments.texto })
-    .from(transcriptionSegments)
-    .where(eq(transcriptionSegments.consultaId, consultaId))
-    .orderBy(asc(transcriptionSegments.numeroSecuencia));
-
-  return rows.map((r) => r.texto).filter(Boolean).join("\n").trim();
+  return transcriptionSegmentService.getPersistedTranscript(consultaId);
 };
 
 const fetchNextSequence = async (consultaId: string) => {
-  const rows = await db
-    .select({
-      maxSequence: sql<number>`coalesce(max(${transcriptionSegments.numeroSecuencia}), 0)`,
-    })
-    .from(transcriptionSegments)
-    .where(eq(transcriptionSegments.consultaId, consultaId));
-
-  return Number(rows[0]?.maxSequence || 0) + 1;
+  return transcriptionSegmentService.getNextSequence(consultaId);
 };
 
 const fetchMaxSequence = async (consultaId: string) => {
-  const rows = await db
-    .select({
-      maxSequence: sql<number>`coalesce(max(${transcriptionSegments.numeroSecuencia}), 0)`,
-    })
-    .from(transcriptionSegments)
-    .where(eq(transcriptionSegments.consultaId, consultaId));
-
-  return Number(rows[0]?.maxSequence || 0);
+  return transcriptionSegmentService.getMaxSequence(consultaId);
 };
 
-const persistSegment = async (consultaId: string, sequence: number, text: string) => {
-  const safeText = text.trim();
-  if (!safeText) return;
+const inferSpeaker = (text: string): "doctor" | "paciente" | "familiar" | "desconocido" => {
+  const value = text.trim().toLowerCase();
+  if (/^(medico|m[eé]dico|doctor|dra\.?|dr\.?)\s*[:.-]/i.test(value)) return "doctor";
+  if (/^(paciente|sr\.?|sra\.?|se[nñ]or|se[nñ]ora)\s*[:.-]/i.test(value)) return "paciente";
+  if (/^(familiar|madre|padre|hijo|hija|esposa|esposo)\s*[:.-]/i.test(value)) return "familiar";
+  if (value.includes("le voy a") || value.includes("vamos a indicar") || value.includes("le indico")) return "doctor";
+  if (value.includes("me duele") || value.includes("siento") || value.includes("tengo ")) return "paciente";
+  return "desconocido";
+};
 
-  await db.insert(transcriptionSegments).values({
+const persistSegment = async (
+  consultaId: string,
+  sequence: number,
+  text: string,
+  timing?: { inicioMs?: number | null; finMs?: number | null }
+) => {
+  await transcriptionSegmentService.appendRealtimeSegment({
     consultaId,
-    numeroSecuencia: sequence,
-    hablante: "desconocido",
-    origen: "flujo_en_vivo",
-    texto: safeText,
+    sequence,
+    text,
+    inicioMs: timing?.inicioMs ?? null,
+    finMs: timing?.finMs ?? null,
   });
-
-  await db
-    .update(consultations)
-    .set({
-      transcripcion: sql`trim(concat_ws(E'\n', coalesce(${consultations.transcripcion}, ''), ${safeText}))`,
-      versionTranscripcion: sql`${consultations.versionTranscripcion} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(eq(consultations.id, consultaId));
 };
 
 const queueIncrementalExtraction = async (
@@ -151,13 +143,22 @@ const queueIncrementalExtraction = async (
     trigger,
   });
 
-  logger.info("Incremental extraction enqueue result:", {
+  logger.info("[socket] incremental-extraction:queued", {
     consultaId,
     segmentoDesde,
     segmentoHasta,
     trigger,
     enqueueResult,
   });
+};
+
+const normalizeAudioChunk = (chunk: AudioChunkPayload["chunk"]) => {
+  if (!chunk) return null;
+  if (typeof chunk === "string") return chunk;
+  if (Buffer.isBuffer(chunk)) return chunk.toString("base64");
+  if (chunk instanceof ArrayBuffer) return Buffer.from(chunk).toString("base64");
+  if (Array.isArray(chunk)) return Buffer.from(chunk).toString("base64");
+  return null;
 };
 
 export function setupSockets(app: FastifyInstance) {
@@ -213,66 +214,104 @@ export function setupSockets(app: FastifyInstance) {
     const existing = runtimeSessions.get(consultaId);
     if (existing) {
       clearIdleTimer(consultaId);
+      logger.info("[socket] realtime-session:reuse", {
+        consultaId,
+        nextSequence: existing.nextSequence,
+        audioChunksReceived: existing.audioChunksReceived,
+      });
       return existing;
     }
 
-    const nextSequence = await fetchNextSequence(consultaId);
-    const runtime: RuntimeSession = {
-      service: null as unknown as OpenAIRealtimeService,
-      nextSequence,
-      persistChain: Promise.resolve(),
-      idleTimer: null,
-      createdAt: Date.now(),
-      bufferedCharsSinceQueue: 0,
-      lastQueuedSequence: Math.max(0, nextSequence - 1),
-      lastQueueAt: 0,
-    };
+    const pending = pendingRuntimeSessions.get(consultaId);
+    if (pending) {
+      logger.info("[socket] realtime-session:await-pending", { consultaId });
+      return pending;
+    }
 
-    const aiService = new OpenAIRealtimeService(
-      (delta) => {
-        io.to(consultaId).emit("transcription_delta", { consultaId, delta });
-      },
-      (finalText) => {
-        const current = runtimeSessions.get(consultaId);
-        const trimmed = finalText?.trim();
-        if (!current || !trimmed) return;
+    const connection = (async () => {
+      const nextSequence = await fetchNextSequence(consultaId);
+      const runtime: RuntimeSession = {
+        service: null as unknown as OpenAIRealtimeService,
+        nextSequence,
+        persistChain: Promise.resolve(),
+        idleTimer: null,
+        createdAt: Date.now(),
+        bufferedCharsSinceQueue: 0,
+        lastQueuedSequence: Math.max(0, nextSequence - 1),
+        lastQueueAt: 0,
+        lastSegmentEndMs: 0,
+        lastAudioEndMs: 0,
+        audioChunksReceived: 0,
+      };
 
-        const sequence = current.nextSequence++;
-        current.persistChain = current.persistChain
-          .then(async () => {
-            await persistSegment(consultaId, sequence, trimmed);
-            current.bufferedCharsSinceQueue += trimmed.length;
+      const aiService = new OpenAIRealtimeService(
+        (delta) => {
+          io.to(consultaId).emit("transcription_delta", { consultaId, delta });
+        },
+        (finalText) => {
+          const current = runtimeSessions.get(consultaId);
+          const trimmed = finalText?.trim();
+          if (!current || !trimmed) return;
 
-            io.to(consultaId).emit("transcription_final", {
-              consultaId,
-              sequence,
-              text: trimmed,
+          const sequence = current.nextSequence++;
+          const inicioMs = current.lastSegmentEndMs || null;
+          const finMs = Math.max(current.lastAudioEndMs, inicioMs || 0) || null;
+          current.lastSegmentEndMs = finMs || current.lastSegmentEndMs;
+          current.persistChain = current.persistChain
+            .then(async () => {
+              await persistSegment(consultaId, sequence, trimmed, { inicioMs, finMs });
+              current.bufferedCharsSinceQueue += trimmed.length;
+
+              io.to(consultaId).emit("transcription_final", {
+                consultaId,
+                sequence,
+                text: trimmed,
+              });
+
+              const elapsedMs = Date.now() - current.lastQueueAt;
+              const newSegments = sequence - current.lastQueuedSequence;
+              const shouldQueueByLoad =
+                current.bufferedCharsSinceQueue >= EXTRACTION_MIN_CHARS &&
+                newSegments >= EXTRACTION_MIN_SEGMENTS &&
+                elapsedMs >= EXTRACTION_MIN_INTERVAL_MS;
+
+              if (shouldQueueByLoad) {
+                await queueIncrementalExtraction(consultaId, sequence, "streaming_batch");
+                current.lastQueuedSequence = sequence;
+                current.bufferedCharsSinceQueue = 0;
+                current.lastQueueAt = Date.now();
+              }
+            })
+            .catch((error) => {
+              logger.error("Error persisting realtime transcription segment:", error);
             });
+        }
+      );
 
-            const elapsedMs = Date.now() - current.lastQueueAt;
-            const newSegments = sequence - current.lastQueuedSequence;
-            const shouldQueueByLoad =
-              current.bufferedCharsSinceQueue >= EXTRACTION_MIN_CHARS &&
-              newSegments >= EXTRACTION_MIN_SEGMENTS &&
-              elapsedMs >= EXTRACTION_MIN_INTERVAL_MS;
+      await aiService.connect();
+      runtime.service = aiService;
+      runtimeSessions.set(consultaId, runtime);
+      logger.info("[socket] realtime-session:ready", {
+        consultaId,
+        nextSequence,
+        reused: false,
+      });
+      return runtime;
+    })();
 
-            if (shouldQueueByLoad) {
-              await queueIncrementalExtraction(consultaId, sequence, "streaming_batch");
-              current.lastQueuedSequence = sequence;
-              current.bufferedCharsSinceQueue = 0;
-              current.lastQueueAt = Date.now();
-            }
-          })
-          .catch((error) => {
-            logger.error("Error persisting realtime transcription segment:", error);
-          });
-      }
-    );
-
-    await aiService.connect();
-    runtime.service = aiService;
-    runtimeSessions.set(consultaId, runtime);
-    return runtime;
+    pendingRuntimeSessions.set(consultaId, connection);
+    try {
+      return await connection;
+    } catch (error) {
+      runtimeSessions.delete(consultaId);
+      logger.error("[socket] realtime-session:failed", {
+        consultaId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    } finally {
+      pendingRuntimeSessions.delete(consultaId);
+    }
   };
 
   io.on("connection", (socket: Socket) => {
@@ -283,6 +322,11 @@ export function setupSockets(app: FastifyInstance) {
     socket.on("join_consultation", async (payload: JoinPayload) => {
       const consultaId = typeof payload === "string" ? payload : payload?.consultaId;
       const doctorId = user?.sub;
+      logger.info("[socket] join:start", {
+        socketId: socket.id,
+        consultaId,
+        doctorId,
+      });
 
       if (!consultaId || !doctorId) {
         socket.emit("transcription_error", { message: "Consulta invalida o usuario no autenticado" });
@@ -292,6 +336,11 @@ export function setupSockets(app: FastifyInstance) {
       try {
         const consultation = await getDoctorConsultation(consultaId, doctorId);
         if (!consultation) {
+          logger.warn("[socket] join:not-authorized", {
+            socketId: socket.id,
+            consultaId,
+            doctorId,
+          });
           socket.emit("transcription_error", { message: "No autorizado para esta consulta" });
           return;
         }
@@ -303,8 +352,28 @@ export function setupSockets(app: FastifyInstance) {
         socket.emit("transcription_sync", { consultaId, text: persistedText });
 
         const hadSession = runtimeSessions.has(consultaId);
-        await ensureRealtimeSession(consultaId);
-        socket.emit("consultation_joined", { consultaId, resumed: hadSession });
+        let realtimeReady = true;
+        try {
+          await ensureRealtimeSession(consultaId);
+        } catch (realtimeError) {
+          realtimeReady = false;
+          logger.error("[socket] join:realtime-unavailable", {
+            socketId: socket.id,
+            consultaId,
+            message: realtimeError instanceof Error ? realtimeError.message : String(realtimeError),
+          });
+          socket.emit("transcription_error", {
+            message: "La transcripcion en vivo no inicio. Se usara transcripcion final al detener.",
+          });
+        }
+        logger.info("[socket] join:done", {
+          socketId: socket.id,
+          consultaId,
+          resumed: hadSession,
+          realtimeReady,
+          persistedChars: persistedText.length,
+        });
+        socket.emit("consultation_joined", { consultaId, resumed: hadSession, realtimeReady });
       } catch (error) {
         logger.error("Error joining consultation room:", error);
         socket.emit("transcription_error", { message: "No se pudo iniciar el canal de transcripcion" });
@@ -318,10 +387,33 @@ export function setupSockets(app: FastifyInstance) {
 
       try {
         const session = runtimeSessions.get(consultaId) ?? (await ensureRealtimeSession(consultaId));
-        session.service.sendAudio(data.chunk);
+        const base64Audio = normalizeAudioChunk(data.chunk);
+        if (!base64Audio) return;
+        session.audioChunksReceived += 1;
+        const safeEndMs = Number(data.endMs || 0);
+        if (Number.isFinite(safeEndMs) && safeEndMs > session.lastAudioEndMs) {
+          session.lastAudioEndMs = safeEndMs;
+        }
+        if (session.audioChunksReceived === 1 || session.audioChunksReceived % 50 === 0) {
+          logger.info("[socket] audio-chunk:received", {
+            consultaId,
+            chunks: session.audioChunksReceived,
+            sampleRate: data.sampleRate || null,
+            encoding: data.encoding || null,
+            endMs: safeEndMs || null,
+          });
+        }
+        session.service.sendAudio(base64Audio);
       } catch (error) {
         logger.error("Error handling audio chunk:", error);
-        socket.emit("transcription_error", { message: "Error procesando audio en vivo" });
+        const now = Date.now();
+        const lastNotified = realtimeFailureNotifiedAt.get(consultaId) || 0;
+        if (now - lastNotified > 10_000) {
+          realtimeFailureNotifiedAt.set(consultaId, now);
+          socket.emit("transcription_error", {
+            message: "Transcripcion en vivo no disponible. Se procesara el audio al detener.",
+          });
+        }
       }
     });
 
@@ -340,9 +432,11 @@ export function setupSockets(app: FastifyInstance) {
         const runtime = runtimeSessions.get(consultaId);
         if (runtime) {
           clearIdleTimer(consultaId);
+          await runtime.service.flushAudio();
           await runtime.persistChain.catch(() => {});
           runtime.service.disconnect();
           runtimeSessions.delete(consultaId);
+          realtimeFailureNotifiedAt.delete(consultaId);
         }
 
         const maxSequence = await fetchMaxSequence(consultaId);

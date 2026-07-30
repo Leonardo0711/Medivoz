@@ -17,12 +17,15 @@ interface UseSessionRecorderReturn {
   recordingTime: number;
   dbSessionId: string | null;
   generateSessionId: () => Promise<{ sessionId: string; dbSessionId: string } | null>;
-  handleStartRecording: () => void;
+  handleStartRecording: () => Promise<boolean>;
   handleStopRecording: () => Promise<void>;
   updateSessionWithTranscription: (transcription: string, dbSessionId?: string) => Promise<void>;
 }
 
 const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+type WindowWithLegacyAudioContext = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
 
 export function useSessionRecorder({
   patientId,
@@ -37,10 +40,15 @@ export function useSessionRecorder({
   const [timerId, setTimerId] = useState<number | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
   const activeConsultaIdRef = useRef<string | null>(null);
   const accumulatedTranscriptionRef = useRef("");
+  const partialTranscriptionRef = useRef("");
   const refreshingRealtimeTokenRef = useRef(false);
+  const audioCursorMsRef = useRef(0);
 
   useEffect(() => {
     const accessToken = localStorage.getItem("access_token");
@@ -75,8 +83,13 @@ export function useSessionRecorder({
       onTranscriptionReady(text);
     });
 
-    socketRef.current.on("transcription_delta", (_data: { delta: string }) => {
-      // Reserved for character-by-character UI if needed.
+    socketRef.current.on("transcription_delta", (data: { delta: string }) => {
+      const delta = data?.delta || "";
+      if (!delta) return;
+      partialTranscriptionRef.current += delta;
+      const base = accumulatedTranscriptionRef.current.trim();
+      const partial = partialTranscriptionRef.current.trim();
+      onTranscriptionReady(base ? `${base}\n${partial}` : partial);
     });
 
     socketRef.current.on("transcription_final", (data: { text: string }) => {
@@ -88,6 +101,7 @@ export function useSessionRecorder({
         : chunk;
 
       accumulatedTranscriptionRef.current = nextText;
+      partialTranscriptionRef.current = "";
       onTranscriptionReady(nextText);
     });
 
@@ -143,7 +157,7 @@ export function useSessionRecorder({
       setSessionId(codigoSesion);
       setDbSessionId(id);
 
-      toast.success(`Sesion ${codigoSesion} creada correctamente`);
+      toast.success("Consulta creada correctamente");
 
       if (onSessionCreated) onSessionCreated(id);
       return { sessionId: codigoSesion, dbSessionId: id };
@@ -154,10 +168,10 @@ export function useSessionRecorder({
     }
   };
 
-  const handleStartRecording = async () => {
+  const handleStartRecording = async (): Promise<boolean> => {
     if (!isPatientSelected || !patientId) {
       toast.error("Debe seleccionar un paciente primero");
-      return;
+      return false;
     }
 
     let currentDbId = dbSessionId;
@@ -165,37 +179,61 @@ export function useSessionRecorder({
 
     if (!currentDbId || !currentCode) {
       const result = await generateSessionId();
-      if (!result) return;
+      if (!result) return false;
       currentDbId = result.dbSessionId;
       currentCode = result.sessionId;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      const AudioContextClass = window.AudioContext || (window as WindowWithLegacyAudioContext).webkitAudioContext;
+      if (!AudioContextClass) {
+        toast.error("Este navegador no soporta captura de audio en vivo");
+        return false;
+      }
+
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const targetSampleRate = 24000;
+
+      audioStreamRef.current = stream;
+      audioContextRef.current = audioContext;
+      audioSourceRef.current = source;
+      audioProcessorRef.current = processor;
 
       activeConsultaIdRef.current = currentDbId;
       accumulatedTranscriptionRef.current = "";
+      partialTranscriptionRef.current = "";
+      audioCursorMsRef.current = 0;
       onTranscriptionReady("");
 
       socketRef.current?.emit("join_consultation", { consultaId: currentDbId });
 
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size <= 0 || !socketRef.current || !activeConsultaIdRef.current) return;
+      processor.onaudioprocess = (event) => {
+        if (!socketRef.current || !activeConsultaIdRef.current) return;
 
-        const reader = new FileReader();
-        reader.readAsDataURL(event.data);
-        reader.onloadend = () => {
-          const base64data = (reader.result as string).split(",")[1];
-          socketRef.current?.emit("audio_chunk", {
-            consultaId: activeConsultaIdRef.current,
-            chunk: base64data,
-          });
-        };
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm16 = floatTo16BitPcm(downsampleBuffer(input, audioContext.sampleRate, targetSampleRate));
+        if (!pcm16.byteLength) return;
+
+        const startMs = audioCursorMsRef.current;
+        const durationMs = Math.round((pcm16.length / targetSampleRate) * 1000);
+        const endMs = startMs + durationMs;
+        audioCursorMsRef.current = endMs;
+
+        socketRef.current.emit("audio_chunk", {
+          consultaId: activeConsultaIdRef.current,
+          chunk: pcm16.buffer,
+          encoding: "pcm16",
+          sampleRate: targetSampleRate,
+          startMs,
+          endMs,
+        });
       };
 
-      mediaRecorder.start(500);
+      source.connect(processor);
+      processor.connect(audioContext.destination);
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -205,17 +243,23 @@ export function useSessionRecorder({
       setTimerId(id);
 
       toast.success("Grabacion iniciada");
+      return true;
     } catch (error) {
       logger.error("Error starting recording:", error);
       toast.error("Error al acceder al microfono");
+      return false;
     }
   };
 
   const handleStopRecording = async () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-    }
+    audioProcessorRef.current?.disconnect();
+    audioSourceRef.current?.disconnect();
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+    audioProcessorRef.current = null;
+    audioSourceRef.current = null;
+    audioStreamRef.current = null;
+    audioContextRef.current = null;
 
     const consultaId = activeConsultaIdRef.current || dbSessionId;
     if (consultaId) {
@@ -256,3 +300,37 @@ export function useSessionRecorder({
     updateSessionWithTranscription,
   };
 }
+
+const downsampleBuffer = (buffer: Float32Array, sourceRate: number, targetRate: number) => {
+  if (targetRate >= sourceRate) return buffer;
+
+  const ratio = sourceRate / targetRate;
+  const newLength = Math.round(buffer.length / ratio);
+  const result = new Float32Array(newLength);
+
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+    let accum = 0;
+    let count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i += 1) {
+      accum += buffer[i];
+      count += 1;
+    }
+    result[offsetResult] = count ? accum / count : 0;
+    offsetResult += 1;
+    offsetBuffer = nextOffsetBuffer;
+  }
+
+  return result;
+};
+
+const floatTo16BitPcm = (input: Float32Array) => {
+  const output = new Int16Array(input.length);
+  for (let i = 0; i < input.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, input[i]));
+    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return output;
+};

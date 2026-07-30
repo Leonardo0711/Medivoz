@@ -53,7 +53,6 @@ export const SessionRecorder = memo(
       audioURL,
       audioWaveform,
       permissionDenied,
-      requestPermission,
       startRecording: startAudioRecording,
       pauseRecording: pauseAudioRecording,
       resumeRecording: resumeAudioRecording,
@@ -86,10 +85,11 @@ export const SessionRecorder = memo(
       }
     }, [audioTranscription, onTranscriptionReady]);
 
-    const handleStartRecording = useCallback(() => {
+    const handleStartRecording = useCallback(async () => {
       audioProcessingRef.current = false;
-      startSessionRecording();
-      startAudioRecording();
+      const startedSession = await startSessionRecording();
+      if (!startedSession) return;
+      await startAudioRecording();
     }, [startSessionRecording, startAudioRecording]);
 
     const handlePauseRecording = useCallback(() => {
@@ -116,7 +116,7 @@ export const SessionRecorder = memo(
         await stopAudioRecording();
       }
 
-      stopSessionRecording();
+      await stopSessionRecording();
 
       setTimeout(async () => {
         try {
@@ -134,7 +134,7 @@ export const SessionRecorder = memo(
           audioProcessingRef.current = false;
         }
       }, 1500);
-    }, [isAudioRecording, stopAudioRecording, stopSessionRecording, transcribeAudio]);
+    }, [dbSessionId, isAudioRecording, stopAudioRecording, stopSessionRecording, transcribeAudio]);
 
     const handleFileUpload = useCallback(
       async (file: File) => {
@@ -220,18 +220,16 @@ export const SessionRecorder = memo(
               </div>
             </div>
 
-            {sessionId ? (
+            {isActive ? (
               <Badge
-                variant="outline"
+                variant="secondary"
                 className={cn(
-                  "font-mono text-xs transition-colors",
-                  isActive ? "border-red-200 bg-red-50 text-red-700" : "bg-background"
+                  "text-xs transition-colors",
+                  "border-red-200 bg-red-50 text-red-700"
                 )}
               >
-                {isActive && (
-                  <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-ping rounded-full bg-red-500" />
-                )}
-                ID: {sessionId.substring(0, 8)}
+                <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-ping rounded-full bg-red-500" />
+                Consulta en curso
               </Badge>
             ) : (
               <Badge variant="secondary" className="bg-muted text-xs text-muted-foreground">
@@ -272,8 +270,6 @@ export const SessionRecorder = memo(
                   sessionId={sessionId}
                   recordingTime={recordingTime}
                   permissionDenied={permissionDenied}
-                  onRequestPermission={requestPermission}
-                  onGenerateSessionId={generateSessionId}
                   onStartRecording={handleStartRecording}
                   onPauseRecording={handlePauseRecording}
                   onResumeRecording={handleResumeRecording}

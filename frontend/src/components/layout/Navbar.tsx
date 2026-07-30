@@ -23,7 +23,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/50 bg-background/90 backdrop-blur-md">
       <div className="container flex h-14 items-center justify-between px-4 md:px-8">
-        <Logo />
+        <Logo to={user ? "/dashboard" : "/"} />
 
         <div className="hidden items-center gap-6 md:flex">
           <nav className="flex items-center space-x-6 text-sm font-medium">
@@ -63,7 +63,10 @@ export function Navbar() {
                 </Button>
               </Link>
               <Link to="/signup">
-                <Button size="sm" className="rounded-lg px-5 shadow-sm transition-all hover:shadow-md">
+                <Button
+                  size="sm"
+                  className="rounded-lg px-5 shadow-sm transition-all hover:shadow-md"
+                >
                   Registrarse
                 </Button>
               </Link>
@@ -89,7 +92,10 @@ export function Navbar() {
                   <ThemeToggle />
                 </div>
 
-                <Link to="/" className="text-lg font-medium transition-colors hover:text-primary">
+                <Link
+                  to={user ? "/dashboard" : "/"}
+                  className="text-lg font-medium transition-colors hover:text-primary"
+                >
                   Inicio
                 </Link>
 
@@ -113,7 +119,10 @@ export function Navbar() {
                 ) : (
                   <div className="mt-4 flex flex-col gap-3">
                     <Link to="/login">
-                      <Button variant="outline" className="h-12 w-full justify-start text-base font-medium">
+                      <Button
+                        variant="outline"
+                        className="h-12 w-full justify-start text-base font-medium"
+                      >
                         Iniciar sesion
                       </Button>
                     </Link>

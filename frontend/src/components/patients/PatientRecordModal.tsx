@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Brain, Calendar, Clock, FileSearch, FileText, History, Loader2, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import api from "@/lib/api";
+import api, { getApiErrorStatus } from "@/lib/api";
 import { logger } from "@/utils/logger";
 import { Patient } from "@/components/patients/PatientDialogTypes";
 import { MedicalRecordFormData } from "@/hooks/medical-record/types";
@@ -27,6 +27,26 @@ interface PatientRecordModalProps {
 type RecordRow = MedicalRecordFormData & {
   sesion_id: string;
   updated_at: string;
+};
+
+type ConsultationRow = {
+  id?: string;
+  codigoSesion?: string;
+  updatedAt?: string;
+  actualizadoEn?: string;
+};
+
+type ScribeSection = {
+  nombre?: string;
+  seccion?: string;
+  textoActual?: string;
+  texto_actual?: string;
+};
+
+type ScribeRecord = {
+  sections?: ScribeSection[];
+  updatedAt?: string;
+  actualizadoEn?: string;
 };
 
 const fieldOrder: Array<{ key: keyof MedicalRecordFormData; label: string; icon: JSX.Element }> = [
@@ -61,7 +81,9 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
       const consultationsResponse = await api.get("/clinical/consultations", {
         params: { pacienteId: patientId },
       });
-      const consultations = Array.isArray(consultationsResponse.data) ? consultationsResponse.data : [];
+      const consultations = Array.isArray(consultationsResponse.data)
+        ? (consultationsResponse.data as ConsultationRow[])
+        : [];
 
       if (!consultations.length) {
         setRecord(null);
@@ -75,12 +97,12 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
         return;
       }
 
-      let scribeRecord: any;
+      let scribeRecord: ScribeRecord;
       try {
         const recordResponse = await api.get(`/scribe/record/${consultationId}`);
-        scribeRecord = recordResponse.data;
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
+        scribeRecord = recordResponse.data as ScribeRecord;
+      } catch (error: unknown) {
+        if (getApiErrorStatus(error) === 404) {
           setRecord(null);
           return;
         }
@@ -163,7 +185,9 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
                 {patient ? (
                   <>
                     <span className="font-semibold text-foreground">{patient.nombre}</span>
-                    <span className="rounded-md border bg-background px-2 py-0.5 font-mono text-xs">DNI: {patient.dni}</span>
+                    <span className="rounded-md border bg-background px-2 py-0.5 font-mono text-xs">
+                      {patient.dni ? "DNI" : "Codigo"}: {patient.dni || patient.codigoPaciente || "Sin codigo"}
+                    </span>
                   </>
                 ) : (
                   "Cargando informacion..."

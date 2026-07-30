@@ -4,6 +4,14 @@ import { registerSchema, loginSchema, refreshTokenSchema } from "./auth.schema.j
 import { convertSchema } from "../../core/utils/schema.js";
 
 export async function authRoutes(app: FastifyInstance) {
+  app.get("/specialities", async () => authService.listSpecialities());
+
+  app.get(
+    "/me",
+    { onRequest: [app.authenticate] },
+    async (request) => authService.getUserProfile((request.user as any).sub)
+  );
+
   // POST /api/v1/auth/register
   app.post("/register", {
     schema: { body: convertSchema(registerSchema) }

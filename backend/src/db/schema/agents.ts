@@ -1,5 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
-import { users } from "./auth.js";
+import { pgTable, uuid, varchar, text, timestamp, boolean, jsonb, integer, numeric } from "drizzle-orm/pg-core";
+import { specialities, users } from "./auth.js";
 import { 
   agentTypeEnum, 
   agentStatusEnum, 
@@ -11,37 +11,48 @@ import {
 
 export const agentTemplates = pgTable("plantillas_agente", {
   id: uuid("id").primaryKey().defaultRandom(),
-  nombre: varchar("nombre", { length: 100 }).notNull().unique(),
-  tipo: agentTypeEnum("tipo").notNull(),
+  nombrePlantilla: text("nombre_plantilla").notNull(),
   descripcion: text("descripcion"),
-  configuracionBase: jsonb("configuracion_base").notNull(),
-  activo: boolean("activo").default(true).notNull(),
-  creadoPor: uuid("creado_por").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  tipo: agentTypeEnum("tipo").notNull(),
+  estado: agentStatusEnum("estado").default("activo").notNull(),
+  especialidadId: integer("especialidad_id").references(() => specialities.id, { onDelete: "set null" }),
+  creadaPorId: uuid("creada_por_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  visibleParaTodosLosDoctores: boolean("visible_para_todos_los_doctores").default(true).notNull(),
+  configuracionBase: jsonb("configuracion_base").default({}).notNull(),
+  documentosReferencia: text("documentos_referencia").array(),
+  dependencias: text("dependencias").array(),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const agentTemplatePrompts = pgTable("versiones_prompt_plantilla", {
   id: uuid("id").primaryKey().defaultRandom(),
-  plantillaId: uuid("plantilla_id").notNull().references(() => agentTemplates.id, { onDelete: "cascade" }),
-  version: varchar("version", { length: 20 }).notNull(),
-  systemPrompt: text("system_prompt").notNull(),
-  userPromptTemplate: text("user_prompt_template"),
-  configuracionModelo: jsonb("configuracion_modelo"),
-  esActiva: boolean("es_activa").default(false).notNull(),
-  creadoPor: uuid("creado_por").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  plantillaAgenteId: uuid("plantilla_agente_id").notNull().references(() => agentTemplates.id, { onDelete: "cascade" }),
+  numeroVersion: integer("numero_version").notNull(),
+  textoPrompt: text("texto_prompt").notNull(),
+  nombreModelo: varchar("nombre_modelo", { length: 100 }),
+  temperatura: numeric("temperatura", { precision: 3, scale: 2 }),
+  configuracionExtra: jsonb("configuracion_extra").default({}).notNull(),
+  esActiva: boolean("es_activa").default(true).notNull(),
+  creadaPorId: uuid("creada_por_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const doctorAgents = pgTable("agentes_doctor", {
   id: uuid("id").primaryKey().defaultRandom(),
   doctorId: uuid("doctor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  plantillaId: uuid("plantilla_id").notNull().references(() => agentTemplates.id),
-  nombrePersonalizado: varchar("nombre_personalizado", { length: 100 }),
-  configuracionPersonalizada: jsonb("configuracion_personalizada"),
+  plantillaAgenteId: uuid("plantilla_agente_id").notNull().references(() => agentTemplates.id, { onDelete: "cascade" }),
+  nombreVisible: text("nombre_visible"),
   estado: agentStatusEnum("estado").default("activo").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  editablePorDoctor: boolean("editable_por_doctor").default(false).notNull(),
+  usarEnConsultaEnVivo: boolean("usar_en_consulta_en_vivo").default(true).notNull(),
+  usarEnResumenFinal: boolean("usar_en_resumen_final").default(true).notNull(),
+  prioridad: integer("prioridad").default(1).notNull(),
+  configuracionSobrescrita: jsonb("configuracion_sobrescrita"),
+  observacionesAdmin: text("observaciones_admin"),
+  asignadoPorId: uuid("asignado_por_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const doctorAgentSections = pgTable("secciones_habilitadas_agente_doctor", {
@@ -50,9 +61,7 @@ export const doctorAgentSections = pgTable("secciones_habilitadas_agente_doctor"
     .notNull()
     .references(() => doctorAgents.id, { onDelete: "cascade" }),
   seccion: sectionNameEnum("seccion").notNull(),
-  prioridad: integer("prioridad").default(0),
-  configuracionExtraccion: jsonb("configuracion_extraccion"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const doctorAgentPrompts = pgTable("versiones_prompt_doctor", {
@@ -60,34 +69,42 @@ export const doctorAgentPrompts = pgTable("versiones_prompt_doctor", {
   agenteDoctorId: uuid("agente_doctor_id")
     .notNull()
     .references(() => doctorAgents.id, { onDelete: "cascade" }),
-  systemPrompt: text("system_prompt").notNull(),
-  userPromptTemplate: text("user_prompt_template"),
-  configuracionModelo: jsonb("configuracion_modelo"),
-  origen: agentConfigOriginEnum("origen").default("administrador").notNull(),
+  numeroVersion: integer("numero_version").notNull(),
+  textoPrompt: text("texto_prompt").notNull(),
+  nombreModelo: varchar("nombre_modelo", { length: 100 }),
+  temperatura: numeric("temperatura", { precision: 3, scale: 2 }),
+  configuracionExtra: jsonb("configuracion_extra").default({}).notNull(),
   esActiva: boolean("es_activa").default(true).notNull(),
-  creadoPor: uuid("creado_por").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  creadaPorId: uuid("creada_por_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  origen: agentConfigOriginEnum("origen").default("administrador").notNull(),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
 import { consultations } from "./clinical.js";
-import { integer } from "drizzle-orm/pg-core";
 
 export const agentExecutions = pgTable("ejecuciones_agente", {
   id: uuid("id").primaryKey().defaultRandom(),
   consultaId: uuid("consulta_id").notNull().references(() => consultations.id, { onDelete: "cascade" }),
-  agenteDoctorId: uuid("agente_doctor_id").references(() => doctorAgents.id),
+  agenteDoctorId: uuid("agente_doctor_id").references(() => doctorAgents.id, { onDelete: "set null" }),
+  versionPromptPlantillaId: uuid("version_prompt_plantilla_id").references(() => agentTemplatePrompts.id, { onDelete: "set null" }),
+  versionPromptDoctorId: uuid("version_prompt_doctor_id").references(() => doctorAgentPrompts.id, { onDelete: "set null" }),
   tipo: executionTypeEnum("tipo").notNull(),
   estado: executionStatusEnum("estado").default("en_cola").notNull(),
-  inputData: jsonb("input_data"),
-  outputData: jsonb("output_data"),
-  promptUsadoId: uuid("prompt_usado_id"),
-  error: text("error"),
-  duracionMs: integer("duracion_ms"),
-  tokensInput: integer("tokens_input"),
-  tokensOutput: integer("tokens_output"),
-  costoEstimado: numeric("costo_estimado", { precision: 10, scale: 6 }),
-  ejecutadoAt: timestamp("ejecutado_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  seccionObjetivo: sectionNameEnum("seccion_objetivo"),
+  segmentoDesde: integer("segmento_desde"),
+  segmentoHasta: integer("segmento_hasta"),
+  nombreModeloUsado: varchar("nombre_modelo_usado", { length: 100 }),
+  temperaturaUsada: numeric("temperatura_usada", { precision: 3, scale: 2 }),
+  entradaJson: jsonb("entrada_json"),
+  salidaJson: jsonb("salida_json"),
+  salidaTexto: text("salida_texto"),
+  tokensEntrada: integer("tokens_entrada"),
+  tokensSalida: integer("tokens_salida"),
+  tokensTotal: integer("tokens_total"),
+  costoEstimadoUsd: numeric("costo_estimado_usd", { precision: 10, scale: 6 }),
+  inicioEjecucion: timestamp("inicio_ejecucion", { withTimezone: true }),
+  finEjecucion: timestamp("fin_ejecucion", { withTimezone: true }),
+  latenciaMs: integer("latencia_ms"),
+  mensajeError: text("mensaje_error"),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
 });
-
-import { numeric } from "drizzle-orm/pg-core";

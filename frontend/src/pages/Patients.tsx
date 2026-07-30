@@ -11,7 +11,7 @@ import { PatientFilters } from "@/components/patients/PatientFilters";
 import { PatientsList } from "@/components/patients/PatientsList";
 import { PatientRecordModal } from "@/components/patients/PatientRecordModal";
 import { Patient, PatientDialogMode } from "@/components/patients/PatientDialogTypes";
-import api from "@/lib/api";
+import api, { getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import { logger } from "@/utils/logger";
 
 export default function Patients() {
@@ -26,7 +26,12 @@ export default function Patients() {
   const [recordPatient, setRecordPatient] = useState<Patient | null>(null);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
-  const { data: patients = [], isLoading, error, refetch } = useQuery({
+  const {
+    data: patients = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["patients", debouncedSearchQuery || "all"],
     queryFn: async () => {
       const response = await api.get("/clinical/patients", {
@@ -41,12 +46,15 @@ export default function Patients() {
 
   useEffect(() => {
     if (error) {
-      const code = (error as any)?.code;
-      const message = String((error as any)?.message || "");
+      const message = getApiErrorMessage(error, "");
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code || "")
+          : "";
       if (code === "ERR_CANCELED" || message.toLowerCase().includes("canceled")) {
         return;
       }
-      const status = (error as any)?.response?.status;
+      const status = getApiErrorStatus(error);
       if (status === 401 || status === 403) {
         logger.warn("Patients query unauthorized; refresh/logout flow will handle this state");
         return;
@@ -86,12 +94,12 @@ export default function Patients() {
       toast.success("Paciente eliminado correctamente");
       await refetch();
       setIsDeleteDialogOpen(false);
+      setSelectedPatient(null);
     } catch (requestError) {
       logger.error("Error eliminando paciente:", requestError);
-      toast.error("Error al eliminar el paciente");
+      toast.error(getApiErrorMessage(requestError, "Error al eliminar el paciente"));
     } finally {
       setIsDeleting(false);
-      setSelectedPatient(null);
     }
   };
 
@@ -134,10 +142,13 @@ export default function Patients() {
 
           <DeleteConfirmDialog
             open={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
+            onOpenChange={(open) => {
+              setIsDeleteDialogOpen(open);
+              if (!open && !isDeleting) setSelectedPatient(null);
+            }}
             onConfirm={confirmDeletePatient}
             title="Eliminar paciente"
-            description={`Estas seguro de que deseas eliminar a ${selectedPatient?.nombre}? Esta accion no se puede deshacer.`}
+            description={`Estas seguro de que deseas eliminar a ${selectedPatient?.nombre || "este paciente"} y todas sus consultas? Esta accion no se puede deshacer.`}
             isDeleting={isDeleting}
           />
 

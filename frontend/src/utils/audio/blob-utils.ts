@@ -21,7 +21,7 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
         reject(new Error("FileReader result is not a string"));
       }
     };
-    reader.onerror = (event) => {
+    reader.onerror = (_event) => {
       logger.error("FileReader error:", reader.error);
       reject(new Error("FileReader error: " + (reader.error?.message || "Unknown error")));
     };

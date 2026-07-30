@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Cpu, History, Home, LogOut, Menu, Mic, Users } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Cpu,
+  History,
+  Home,
+  LogOut,
+  Menu,
+  Mic,
+  Stethoscope,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { logger } from "@/utils/logger";
+import { formatSpecialityName } from "@/utils/speciality";
 import { ThemeToggleButton } from "@/components/ThemeToggle";
 import { Logo } from "@/components/common/Logo";
 
@@ -42,7 +54,10 @@ export function Sidebar() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty("--app-sidebar-width", isMobile ? "0px" : collapsed ? DESKTOP_COLLAPSED_WIDTH : DESKTOP_EXPANDED_WIDTH);
+    root.style.setProperty(
+      "--app-sidebar-width",
+      isMobile ? "0px" : collapsed ? DESKTOP_COLLAPSED_WIDTH : DESKTOP_EXPANDED_WIDTH
+    );
     root.style.setProperty("--app-topbar-height", isMobile ? MOBILE_TOPBAR_HEIGHT : "0px");
 
     return () => {
@@ -72,7 +87,13 @@ export function Sidebar() {
     }
   };
 
-  const NavLink = ({ mobile = false, item }: { mobile?: boolean; item: (typeof navItems)[number] }) => {
+  const NavLink = ({
+    mobile = false,
+    item,
+  }: {
+    mobile?: boolean;
+    item: (typeof navItems)[number];
+  }) => {
     const isActive = location.pathname === item.href;
     const content = (
       <Link
@@ -85,8 +106,12 @@ export function Sidebar() {
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         )}
       >
-        {isActive && <span className="absolute left-0 top-2.5 h-5 w-[3px] rounded-r-full bg-primary" />}
-        <item.icon className={cn("h-[18px] w-[18px] shrink-0", collapsed && !mobile && "mx-auto")} />
+        {isActive && (
+          <span className="absolute left-0 top-2.5 h-5 w-[3px] rounded-r-full bg-primary" />
+        )}
+        <item.icon
+          className={cn("h-[18px] w-[18px] shrink-0", collapsed && !mobile && "mx-auto")}
+        />
         {(!collapsed || mobile) && <span className="truncate">{item.name}</span>}
       </Link>
     );
@@ -109,7 +134,7 @@ export function Sidebar() {
     return (
       <div className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-screen-2xl items-center justify-between px-4">
-          <Logo />
+          <Logo to="/dashboard" />
           <div className="flex items-center gap-1">
             <ThemeToggleButton variant="ghost" size="sm" />
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -119,10 +144,13 @@ export function Sidebar() {
                   <span className="sr-only">Abrir menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[85vw] max-w-[320px] border-r border-border/60 p-0">
+              <SheetContent
+                side="left"
+                className="w-[85vw] max-w-[320px] border-r border-border/60 p-0"
+              >
                 <div className="flex h-full flex-col bg-background">
                   <div className="flex h-14 items-center justify-between border-b border-border/60 px-4">
-                    <Logo />
+                    <Logo to="/dashboard" />
                     <ThemeToggleButton variant="ghost" size="sm" />
                   </div>
 
@@ -135,7 +163,13 @@ export function Sidebar() {
                   </div>
 
                   <div className="border-t border-border/60 p-3">
-                    <p className="mb-2 truncate text-xs text-muted-foreground">{user?.email || "Usuario"}</p>
+                    <p className="truncate text-xs font-medium text-foreground">
+                      {user?.nombreCompleto || user?.email || "Usuario"}
+                    </p>
+                    <p className="mb-2 mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                      <Stethoscope className="h-3 w-3 shrink-0" />
+                      {formatSpecialityName(user?.especialidad)}
+                    </p>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -163,9 +197,20 @@ export function Sidebar() {
           collapsed ? "w-16" : "w-60"
         )}
       >
-        <div className={cn("flex h-14 items-center border-b border-border/60", collapsed ? "justify-center px-2" : "justify-between px-4")}>
-          <Logo collapsed={collapsed} />
-          {!collapsed && <ThemeToggleButton variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" />}
+        <div
+          className={cn(
+            "flex h-14 items-center border-b border-border/60",
+            collapsed ? "justify-center px-2" : "justify-between px-4"
+          )}
+        >
+          <Logo collapsed={collapsed} to="/dashboard" />
+          {!collapsed && (
+            <ThemeToggleButton
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+            />
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-4">
@@ -182,6 +227,17 @@ export function Sidebar() {
         </div>
 
         <div className="space-y-1 border-t border-border/60 p-2">
+          {!collapsed && user && (
+            <div className="mb-2 rounded-md bg-muted/50 px-3 py-2">
+              <p className="truncate text-xs font-medium text-foreground">
+                {user.nombreCompleto || user.email}
+              </p>
+              <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                <Stethoscope className="h-3 w-3 shrink-0" />
+                {formatSpecialityName(user.especialidad)}
+              </p>
+            </div>
+          )}
           {collapsed && (
             <ThemeToggleButton
               variant="ghost"
@@ -199,7 +255,11 @@ export function Sidebar() {
             )}
             onClick={() => setCollapsed((prev) => !prev)}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="mr-2 h-4 w-4" />}
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="mr-2 h-4 w-4" />
+            )}
             {!collapsed && <span className="text-xs uppercase tracking-[0.12em]">Ocultar</span>}
           </Button>
 

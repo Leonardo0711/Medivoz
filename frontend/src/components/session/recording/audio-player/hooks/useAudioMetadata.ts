@@ -1,13 +1,14 @@
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { forceLoadMetadata } from "@/utils/audio";
 
 export function useAudioMetadata(audioRef: React.RefObject<HTMLAudioElement>) {
   const [duration, setDuration] = useState(0);
   
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      const audioDuration = audioRef.current.duration;
+  const handleLoadedMetadata = useCallback(() => {
+    const audioElement = audioRef.current;
+    if (audioElement) {
+      const audioDuration = audioElement.duration;
       console.log("Audio metadata loaded, duration:", audioDuration);
       
       if (isNaN(audioDuration) || !isFinite(audioDuration)) {
@@ -17,14 +18,15 @@ export function useAudioMetadata(audioRef: React.RefObject<HTMLAudioElement>) {
         setDuration(audioDuration);
       }
     }
-  };
+  }, [audioRef]);
 
-  const handleCanPlay = () => {
-    console.log("Audio can play now, duration:", audioRef.current?.duration);
-    if (audioRef.current && !isNaN(audioRef.current.duration) && isFinite(audioRef.current.duration)) {
-      setDuration(audioRef.current.duration);
+  const handleCanPlay = useCallback(() => {
+    const audioElement = audioRef.current;
+    console.log("Audio can play now, duration:", audioElement?.duration);
+    if (audioElement && !isNaN(audioElement.duration) && isFinite(audioElement.duration)) {
+      setDuration(audioElement.duration);
     }
-  };
+  }, [audioRef]);
 
   // Listen for metadata events
   useEffect(() => {
@@ -48,7 +50,7 @@ export function useAudioMetadata(audioRef: React.RefObject<HTMLAudioElement>) {
         audioElement.removeEventListener("canplay", handleCanPlay);
       }
     };
-  }, [audioRef.current]);
+  }, [audioRef, handleCanPlay, handleLoadedMetadata]);
 
   return { duration };
 }

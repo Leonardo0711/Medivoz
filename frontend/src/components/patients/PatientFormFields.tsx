@@ -1,5 +1,4 @@
-
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { UseFormReturn } from "react-hook-form";
 import { PatientFormValues } from "./PatientDialogTypes";
@@ -18,27 +17,28 @@ export function PatientFormFields({ form }: PatientFormFieldsProps) {
           <FormItem>
             <FormLabel>Nombre completo*</FormLabel>
             <FormControl>
-              <Input placeholder="Juan Pérez" {...field} />
+              <Input placeholder="Juan Perez" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
-      
+
       <FormField
         control={form.control}
         name="dni"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>DNI*</FormLabel>
+            <FormLabel>DNI</FormLabel>
             <FormControl>
-              <Input placeholder="12345678" {...field} />
+              <Input inputMode="numeric" placeholder="12345678" {...field} />
             </FormControl>
+            <FormDescription>Opcional en fase 1</FormDescription>
             <FormMessage />
           </FormItem>
         )}
       />
-      
+
       <FormField
         control={form.control}
         name="edad"
@@ -46,57 +46,16 @@ export function PatientFormFields({ form }: PatientFormFieldsProps) {
           <FormItem>
             <FormLabel>Edad</FormLabel>
             <FormControl>
-              <Input 
-                placeholder="30" 
-                type="number" 
-                onChange={(e) => field.onChange(e.target.value === "" ? null : parseInt(e.target.value, 10))}
+              <Input
+                min="0"
+                max="130"
+                placeholder="30"
+                type="number"
+                onChange={(event) =>
+                  field.onChange(event.target.value === "" ? null : Number.parseInt(event.target.value, 10))
+                }
                 value={field.value === null ? "" : field.value}
               />
-            </FormControl>
-            <FormDescription>Opcional</FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      
-      <FormField
-        control={form.control}
-        name="ocupacion"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Ocupación</FormLabel>
-            <FormControl>
-              <Input placeholder="Ingeniero" {...field} />
-            </FormControl>
-            <FormDescription>Opcional</FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      
-      <FormField
-        control={form.control}
-        name="procedencia"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Procedencia</FormLabel>
-            <FormControl>
-              <Input placeholder="Buenos Aires" {...field} />
-            </FormControl>
-            <FormDescription>Opcional</FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      
-      <FormField
-        control={form.control}
-        name="diagnostico"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Diagnóstico</FormLabel>
-            <FormControl>
-              <Input placeholder="Diagnóstico preliminar" {...field} />
             </FormControl>
             <FormDescription>Opcional</FormDescription>
             <FormMessage />

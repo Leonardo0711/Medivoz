@@ -16,10 +16,26 @@ import { useMedicalRecord } from "@/hooks/medical-record/use-medical-record";
 import { logger } from "@/utils/logger";
 import api from "@/lib/api";
 
+type AnamnesisPhase = {
+  estadoAnamnesis?: string | null;
+  segmentoFinAnamnesis?: number | null;
+  confianzaCierreAnamnesis?: string | number | null;
+  motivoCierreAnamnesis?: string | null;
+};
+
+const anamnesisPhaseLabels: Record<string, string> = {
+  no_iniciada: "Anamnesis no iniciada",
+  en_anamnesis: "Anamnesis en curso",
+  probable_cierre: "Anamnesis probablemente cerrada",
+  cerrada: "Anamnesis cerrada",
+  reabierta: "Anamnesis reabierta",
+};
+
 export default function Session() {
   const [transcription, setTranscription] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [anamnesisPhase, setAnamnesisPhase] = useState<AnamnesisPhase | null>(null);
   const [searchParams] = useSearchParams();
   const patientId = selectedPatient?.id || null;
 
@@ -36,8 +52,20 @@ export default function Session() {
     handleSave,
     handleExportPDF,
     setFormData,
+    sectionMeta,
+    recordSummary,
+    validationWarnings,
+    handleRecordSummaryChange,
+    handleAcceptSuggestion,
+    handleRejectSuggestion,
+    handleBlockSection,
+    handleRetrySection,
+    handleRefineSection,
     recordExists,
     refreshTranscription,
+    refreshRecordData,
+    editElapsedMs,
+    isEditTiming,
   } = useMedicalRecord(currentSessionId, patientId);
 
   const loadPatient = useCallback(async (id: string) => {
@@ -48,7 +76,8 @@ export default function Session() {
         setSelectedPatient({
           id: data.id,
           nombre: data.nombre,
-          dni: data.dni,
+          dni: data.dni ?? null,
+          codigoPaciente: data.codigoPaciente ?? null,
           edad: data.edad,
           ocupacion: data.ocupacion,
           procedencia: data.procedencia,
@@ -77,15 +106,43 @@ export default function Session() {
     setTranscription(text);
   }, []);
 
+  const refreshAnamnesisPhase = useCallback(async () => {
+    if (!currentSessionId) return;
+    try {
+      const response = await api.get(`/clinical/consultations/${currentSessionId}`);
+      setAnamnesisPhase({
+        estadoAnamnesis: response.data?.estadoAnamnesis,
+        segmentoFinAnamnesis: response.data?.segmentoFinAnamnesis,
+        confianzaCierreAnamnesis: response.data?.confianzaCierreAnamnesis,
+        motivoCierreAnamnesis: response.data?.motivoCierreAnamnesis,
+      });
+    } catch (error) {
+      logger.warn("No se pudo actualizar fase de anamnesis", error);
+    }
+  }, [currentSessionId]);
+
   useEffect(() => {
     if (transcription && currentSessionId) {
       const timeoutId = setTimeout(async () => {
         logger.log("Refreshing transcription from DB for session:", currentSessionId);
         await refreshTranscription();
+        await refreshAnamnesisPhase();
       }, 1500);
       return () => clearTimeout(timeoutId);
     }
-  }, [transcription, currentSessionId, refreshTranscription]);
+  }, [transcription, currentSessionId, refreshTranscription, refreshAnamnesisPhase]);
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      setAnamnesisPhase(null);
+      return;
+    }
+    void refreshAnamnesisPhase();
+    const intervalId = window.setInterval(() => {
+      void refreshAnamnesisPhase();
+    }, 7000);
+    return () => window.clearInterval(intervalId);
+  }, [currentSessionId, refreshAnamnesisPhase]);
 
   const patientInfoProps = useMemo(() => {
     const patient = patientData || selectedPatient;
@@ -123,7 +180,9 @@ export default function Session() {
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-sm font-medium text-muted-foreground">
                     Sesion activa:
-                    <span className="ml-1 font-mono text-foreground">{currentSessionId.substring(0, 8)}</span>
+                    <span className="ml-1 font-mono text-foreground">
+                      {currentSessionId.substring(0, 8)}
+                    </span>
                   </span>
                 </div>
               )}
@@ -132,7 +191,10 @@ export default function Session() {
 
           <div className="grid grid-cols-1 gap-6 pb-10 xl:grid-cols-12 xl:gap-8">
             <div className="flex flex-col gap-6 xl:col-span-5 xl:gap-8">
-              <SessionPatientCard selectedPatient={selectedPatient} onPatientSelect={setSelectedPatient} />
+              <SessionPatientCard
+                selectedPatient={selectedPatient}
+                onPatientSelect={setSelectedPatient}
+              />
 
               <div className="space-y-6">
                 <div className="relative">
@@ -188,12 +250,27 @@ export default function Session() {
                         Ficha existente
                       </Badge>
                     )}
+                    {anamnesisPhase?.estadoAnamnesis &&
+                      anamnesisPhase.estadoAnamnesis !== "no_iniciada" && (
+                        <Badge
+                          variant="outline"
+                          className="w-fit border-sky-200 bg-sky-50 text-sky-800"
+                          title={anamnesisPhase.motivoCierreAnamnesis || undefined}
+                        >
+                          <Activity className="mr-1 h-3 w-3" />
+                          {anamnesisPhaseLabels[anamnesisPhase.estadoAnamnesis] ||
+                            "Fase de anamnesis"}
+                          {anamnesisPhase.segmentoFinAnamnesis
+                            ? ` · seg. ${anamnesisPhase.segmentoFinAnamnesis}`
+                            : ""}
+                        </Badge>
+                      )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="flex-1 overflow-y-auto bg-muted/5 p-0">
                   {patientId && currentSessionId ? (
-                    <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6 sm:py-6">
+                    <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
                       {patientInfoProps && (
                         <div className="mb-6">
                           <PatientInfoCard
@@ -214,6 +291,17 @@ export default function Session() {
                           showFullTranscription={showFullTranscription}
                           toggleTranscriptionView={toggleTranscriptionView}
                           handleChange={handleChange}
+                          sectionMeta={sectionMeta}
+                          recordSummary={recordSummary}
+                          onRecordSummaryChange={handleRecordSummaryChange}
+                          validationWarnings={validationWarnings}
+                          editElapsedMs={editElapsedMs}
+                          isEditTiming={isEditTiming}
+                          onAcceptSuggestion={handleAcceptSuggestion}
+                          onRejectSuggestion={handleRejectSuggestion}
+                          onBlockSection={handleBlockSection}
+                          onRetrySection={handleRetrySection}
+                          onRefineSection={handleRefineSection}
                           isSaving={isSaving}
                           isExporting={isExporting}
                           onClose={() => {}}
@@ -224,9 +312,11 @@ export default function Session() {
                             await handleExportPDF();
                           }}
                           refreshTranscription={refreshTranscription}
+                          refreshRecordData={refreshRecordData}
                           patientId={patientId}
                           sessionId={currentSessionId}
                           showCloseButton={false}
+                          showTranscriptionPanel={false}
                         />
                       </div>
                     </div>

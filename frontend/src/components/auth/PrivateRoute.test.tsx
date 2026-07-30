@@ -9,6 +9,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 }));
 
 import { useAuth } from '@/contexts/AuthContext';
+import type { User } from '@/contexts/AuthContext';
 const mockUseAuth = vi.mocked(useAuth);
 
 function renderWithRouter(initialRoute = '/protected') {
@@ -53,7 +54,7 @@ describe('PrivateRoute', () => {
 
   it('renders protected content when user is authenticated', () => {
     mockUseAuth.mockReturnValue({
-      user: { id: '123', email: 'doctor@test.com' } as any,
+      user: { id: '123', email: 'doctor@test.com', rol: 'medico' } as User,
       signOut: vi.fn(),
       loading: false,
     });

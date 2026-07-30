@@ -16,6 +16,22 @@ export const consultationStatusEnum = pgEnum("estado_consulta", [
   "cancelada",
 ]);
 
+export const anamnesisPhaseStatusEnum = pgEnum("estado_fase_anamnesis", [
+  "no_iniciada",
+  "en_anamnesis",
+  "probable_cierre",
+  "cerrada",
+  "reabierta",
+]);
+
+export const consultationTypeEnum = pgEnum("tipo_consulta", [
+  "primera_consulta",
+  "control",
+  "seguimiento",
+  "interconsulta",
+  "emergencia",
+]);
+
 export const speakerTypeEnum = pgEnum("tipo_hablante", [
   "doctor",
   "paciente",
@@ -48,6 +64,15 @@ export const sectionStatusEnum = pgEnum("estado_seccion", [
   "borrador_ia",
   "revisada",
   "bloqueada",
+]);
+
+export const recordStatusEnum = pgEnum("estado_ficha", [
+  "vacia",
+  "generando",
+  "borrador_ia",
+  "en_revision",
+  "finalizada",
+  "error",
 ]);
 
 export const updateOriginEnum = pgEnum("origen_actualizacion", [

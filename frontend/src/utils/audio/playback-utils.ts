@@ -124,7 +124,7 @@ export const safeLoadAudio = (
     if (onSuccess) onSuccess(audio);
   });
   
-  audio.addEventListener('error', (event) => {
+  audio.addEventListener('error', (_event) => {
     const errorMsg = audio.error ? 
       `Error loading audio: ${audio.error.code} - ${audio.error.message}` : 
       'Unknown audio loading error';

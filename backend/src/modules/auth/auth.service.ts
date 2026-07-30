@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import { hashPassword, comparePassword } from "../../core/utils/hash.js";
 import { db } from "../../db/index.js";
 import {
@@ -10,6 +10,14 @@ import {
   specialities,
 } from "../../db/schema/auth.js";
 import { RegisterInput, LoginInput } from "./auth.schema.js";
+
+const registrationSpecialities = [
+  "Neurologia",
+  "Endocrinologia",
+  "Psiquiatria",
+  "Reumatologia",
+  "Hematologia",
+] as const;
 
 export class AuthService {
   private buildRotatingRefreshToken() {
@@ -42,11 +50,48 @@ export class AuthService {
       ? "administrador"
       : "doctor";
 
+    const [profile] = await db
+      .select({
+        nombreCompleto: profiles.nombreCompleto,
+        especialidadId: profiles.especialidadId,
+        especialidad: specialities.nombre,
+      })
+      .from(profiles)
+      .innerJoin(specialities, eq(profiles.especialidadId, specialities.id))
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
     return {
       id: user.id,
       email: user.email,
       rol,
+      nombreCompleto: profile?.nombreCompleto ?? null,
+      especialidadId: profile?.especialidadId ?? null,
+      especialidad: profile?.especialidad ?? null,
     };
+  }
+
+  async listSpecialities() {
+    const rows = await db
+      .select({ id: specialities.id, nombre: specialities.nombre })
+      .from(specialities)
+      .where(
+        and(
+          eq(specialities.activa, true),
+          eq(specialities.esAdministrativa, false),
+          inArray(specialities.nombre, [...registrationSpecialities])
+        )
+      );
+
+    const byName = new Map(rows.map((row) => [row.nombre, row]));
+    return registrationSpecialities.flatMap((name) => {
+      const row = byName.get(name);
+      return row ? [row] : [];
+    });
+  }
+
+  async getUserProfile(userId: string) {
+    return this.resolveUserAuthPayload(userId);
   }
 
   async register(input: RegisterInput) {
@@ -76,23 +121,19 @@ export class AuthService {
         typeof especialidadId === "string"
           ? Number.parseInt(especialidadId, 10)
           : especialidadId;
-      if (finalEspecialidadId && Number.isNaN(finalEspecialidadId)) {
-        finalEspecialidadId = undefined;
+      if (!Number.isInteger(finalEspecialidadId) || finalEspecialidadId <= 0) {
+        throw new Error("Debe seleccionar una especialidad");
       }
-      if (!finalEspecialidadId) {
-        const fallbackSpeciality = await tx.query.specialities.findFirst({
-          where: and(
-            eq(specialities.activa, true),
-            eq(specialities.esAdministrativa, false)
-          ),
-          orderBy: [desc(specialities.id)],
-        });
 
-        if (!fallbackSpeciality) {
-          throw new Error("No hay especialidades activas configuradas");
-        }
-        finalEspecialidadId = fallbackSpeciality.id;
-      }
+      const selectedSpeciality = await tx.query.specialities.findFirst({
+        where: and(
+          eq(specialities.id, finalEspecialidadId),
+          eq(specialities.activa, true),
+          eq(specialities.esAdministrativa, false),
+          inArray(specialities.nombre, [...registrationSpecialities])
+        ),
+      });
+      if (!selectedSpeciality) throw new Error("La especialidad seleccionada no esta disponible");
 
       await tx.insert(profiles).values({
         userId: newUser.id,

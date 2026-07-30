@@ -10,6 +10,9 @@ import { AsyncSemaphore } from "../../core/utils/async-semaphore.js";
 import { db } from "../../db/index.js";
 import { consultations } from "../../db/schema/clinical.js";
 import { audioTemporalService } from "./audio-temporal.service.js";
+import { transcriptionSegmentService } from "./transcription-segment.service.js";
+import { enqueueClinicalExtraction } from "../../worker/clinical.queue.js";
+import { logger } from "../../core/utils/logger.js";
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
@@ -29,10 +32,20 @@ const maxAudioBytes = 25 * 1024 * 1024;
 const saveRecordSchema = z.object({
   consultaId: z.string().uuid(),
   pacienteId: z.string().uuid().optional(),
+  resumenSugeridoIa: z.string().nullable().optional(),
+  resumenActual: z.string().nullable().optional(),
+  sesionEdicionId: z.string().uuid().nullable().optional(),
+  duracionEdicionTotalMs: z.number().int().nonnegative().nullable().optional(),
   secciones: z.array(
     z.object({
       nombre: z.string(),
       contenido: z.string(),
+      textoSugeridoIa: z.string().nullable().optional(),
+      resumenSugeridoIa: z.string().nullable().optional(),
+      resumenActual: z.string().nullable().optional(),
+      duracionEdicionMs: z.number().int().nonnegative().nullable().optional(),
+      confianza: z.string().nullable().optional(),
+      origenDato: z.string().nullable().optional(),
     })
   ),
 });
@@ -45,6 +58,30 @@ const transcribeSchema = z.object({
 
 const autoFillSchema = z.object({
   transcription: z.string().min(20),
+  consultaId: z.string().uuid().optional(),
+});
+
+const reviewSectionSchema = z.object({
+  action: z.enum(["accept", "reject", "block"]),
+  contenido: z.string().optional().nullable(),
+  resumenActual: z.string().optional().nullable(),
+  duracionEdicionMs: z.number().int().nonnegative().optional().nullable(),
+  sesionEdicionId: z.string().uuid().optional().nullable(),
+});
+
+const syncEditSessionSchema = z.object({
+  duracionActivaMs: z.number().int().nonnegative(),
+  estado: z.enum(["activa", "pausada", "completada"]).optional(),
+});
+
+const queueExtractionSchema = z.object({
+  seccion: z.string().optional().nullable(),
+});
+
+const refineSectionSchema = z.object({
+  action: z
+    .enum(["resumir", "expandir", "corregir_estilo", "extraer_negativos", "formato_institucional"])
+    .default("corregir_estilo"),
 });
 
 const normalizeMedicalRecord = (raw: Record<string, unknown>) => ({
@@ -177,6 +214,13 @@ const transcribeWithAudioStaging = async (params: {
 
   try {
     const payload = await transcribeAudioBuffer(params.buffer, params.mimeType, params.fileName);
+    if (payload.formattedTranscription?.trim()) {
+      await transcriptionSegmentService.ensureSegmentsFromTranscript({
+        consultaId: params.consultaId,
+        transcript: payload.formattedTranscription,
+        origin: params.fileName ? "archivo_subido" : "fusion_sistema",
+      });
+    }
     await audioTemporalService.deleteNow(tempAudio.id, tempAudio.rutaArchivo, "procesado_ok_borrado_inmediato");
     return {
       ...payload,
@@ -203,28 +247,50 @@ export async function scribeRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const doctorId = (request.user as any).sub;
-      const { consultaId, pacienteId, secciones } = request.body as any;
+      const {
+        consultaId,
+        pacienteId,
+        secciones,
+        resumenSugeridoIa,
+        resumenActual,
+        sesionEdicionId,
+        duracionEdicionTotalMs,
+      } = request.body as any;
 
       try {
-        const record = await scribeService.getOrCreateRecord(consultaId, {
+        logger.info("[scribe-route] save:start", {
+          doctorId,
+          consultaId,
+          pacienteId: pacienteId || null,
+          sectionCount: secciones.length,
+          sections: secciones.map((section: any) => section.nombre),
+          hasRecordSummary: Boolean(resumenActual?.trim?.() || resumenSugeridoIa?.trim?.()),
+        });
+        const { record, results } = await scribeService.saveRecord({
+          consultaId,
           pacienteId,
           doctorId,
+          secciones,
+          resumenSugeridoIa,
+          resumenActual,
+          sesionEdicionId,
+          duracionEdicionTotalMs,
         });
 
-        const results = [];
-        for (const section of secciones) {
-          const res = await scribeService.updateSection(
-            record.id,
-            section.nombre,
-            section.contenido,
-            "doctor",
-            doctorId
-          );
-          results.push(res);
-        }
-
+        logger.info("[scribe-route] save:done", {
+          doctorId,
+          consultaId,
+          fichaId: record.id,
+          updatedSections: results.length,
+          hasRecordSummary: Boolean(resumenActual?.trim?.() || resumenSugeridoIa?.trim?.()),
+        });
         return { record, results };
       } catch (error: any) {
+        logger.error("[scribe-route] save:failed", {
+          doctorId,
+          consultaId,
+          message: error?.message || "unknown",
+        });
         return reply.code(400).send({ error: error.message });
       }
     }
@@ -235,13 +301,326 @@ export async function scribeRoutes(app: FastifyInstance) {
     const doctorId = (request.user as any).sub;
     const { consultaId } = request.params as any;
     try {
+      logger.info("[scribe-route] record:get", { doctorId, consultaId });
       const record = await scribeService.getRecordByConsultationForDoctor(consultaId, doctorId);
       if (!record) return reply.code(404).send({ error: "Ficha no encontrada" });
       return record;
     } catch (error: any) {
+      logger.error("[scribe-route] record:get:failed", {
+        doctorId,
+        consultaId,
+        message: error?.message || "unknown",
+      });
       return reply.code(400).send({ error: error.message });
     }
   });
+
+  app.get("/record/:consultaId/validation", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId } = request.params as any;
+    try {
+      logger.info("[scribe-route] validation:get", { doctorId, consultaId });
+      const result = await scribeService.validateRecord(consultaId, doctorId);
+      if (!result) return reply.code(404).send({ error: "Consulta no encontrada" });
+      return result;
+    } catch (error: any) {
+      logger.error("[scribe-route] validation:failed", {
+        doctorId,
+        consultaId,
+        message: error?.message || "unknown",
+      });
+      return reply.code(400).send({ error: "No se pudo validar la ficha" });
+    }
+  });
+
+  app.post("/record/:consultaId/edit-sessions/start", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId } = request.params as any;
+    try {
+      const session = await scribeService.startEditSession(consultaId, doctorId);
+      if (!session) return reply.code(404).send({ error: "Consulta no encontrada" });
+      return session;
+    } catch (error: any) {
+      logger.error("[scribe-route] edit-session:start:failed", {
+        doctorId,
+        consultaId,
+        message: error?.message || "unknown",
+      });
+      return reply.code(400).send({ error: "No se pudo iniciar la medicion de edicion" });
+    }
+  });
+
+  app.patch(
+    "/record/:consultaId/edit-sessions/:editSessionId",
+    { schema: { body: convertSchema(syncEditSessionSchema) } },
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId, editSessionId } = request.params as any;
+      const input = request.body as any;
+      try {
+        const session = await scribeService.syncEditSession(consultaId, doctorId, editSessionId, input);
+        if (!session) return reply.code(404).send({ error: "Sesion de edicion no encontrada" });
+        return session;
+      } catch (error: any) {
+        logger.error("[scribe-route] edit-session:sync:failed", {
+          doctorId,
+          consultaId,
+          editSessionId,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: "No se pudo guardar el tiempo de edicion" });
+      }
+    }
+  );
+
+  app.get("/record/:consultaId/edit-metrics", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId } = request.params as any;
+    const metrics = await scribeService.getEditMetrics(consultaId, doctorId);
+    if (!metrics) return reply.code(404).send({ error: "Consulta no encontrada" });
+    return metrics;
+  });
+
+  app.post(
+    "/record/:consultaId/sections/:nombre/review",
+    {
+      schema: { body: convertSchema(reviewSectionSchema) },
+    },
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId, nombre } = request.params as any;
+      const { action, contenido, resumenActual, duracionEdicionMs, sesionEdicionId } = request.body as any;
+
+      try {
+        logger.info("[scribe-route] section:review:start", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+          hasContentPayload: Boolean(contenido?.trim?.()),
+          hasSummaryPayload: Boolean(resumenActual?.trim?.()),
+        });
+        const updated = await scribeService.reviewSection(consultaId, doctorId, nombre, action, {
+          contenido,
+          resumenActual,
+          duracionEdicionMs,
+          sesionEdicionId,
+        });
+        if (!updated) {
+          logger.warn("[scribe-route] section:review:not-found", {
+            doctorId,
+            consultaId,
+            section: nombre,
+            action,
+          });
+          return reply.code(404).send({ error: "Seccion no encontrada o consulta no autorizada" });
+        }
+        logger.info("[scribe-route] section:review:done", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+          sectionId: updated.id,
+          nextEstado: updated.estado,
+        });
+        return updated;
+      } catch (error: any) {
+        logger.error("[scribe-route] section:review:failed", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: error.message || "No se pudo actualizar la seccion" });
+      }
+    }
+  );
+
+  app.post(
+    "/record/:consultaId/queue-extraction",
+    {
+      schema: { body: convertSchema(queueExtractionSchema) },
+    },
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId } = request.params as any;
+      const { seccion } = request.body as any;
+
+      try {
+        logger.info("[scribe-route] queue-extraction:start", {
+          doctorId,
+          consultaId,
+          section: seccion || null,
+        });
+        const consultation = await getDoctorConsultation(consultaId, doctorId);
+        if (!consultation) {
+          logger.warn("[scribe-route] queue-extraction:not-authorized", { doctorId, consultaId });
+          return reply.code(403).send({ error: "Consulta no autorizada para procesamiento IA" });
+        }
+
+        const queued = await enqueueClinicalExtraction({
+          consultaId,
+          seccionObjetivo: seccion || null,
+          trigger: "manual_frontend",
+        });
+
+        logger.info("[scribe-route] queue-extraction:done", {
+          doctorId,
+          consultaId,
+          section: seccion || null,
+          jobId: queued.jobId,
+          queued: queued.queued,
+          coalesced: queued.coalesced,
+          state: queued.state,
+        });
+        return {
+          queued: true,
+          job: queued,
+          message: "Procesamiento IA en cola. La ficha se actualizara por secciones.",
+        };
+      } catch (error: any) {
+        logger.error("[scribe-route] queue-extraction:failed", {
+          doctorId,
+          consultaId,
+          section: seccion || null,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: "No se pudo encolar el procesamiento IA" });
+      }
+    }
+  );
+
+  app.post(
+    "/record/:consultaId/sections/:nombre/retry",
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId, nombre } = request.params as any;
+
+      try {
+        logger.info("[scribe-route] section:retry:start", {
+          doctorId,
+          consultaId,
+          section: nombre,
+        });
+        const consultation = await getDoctorConsultation(consultaId, doctorId);
+        if (!consultation) {
+          logger.warn("[scribe-route] section:retry:not-authorized", { doctorId, consultaId, section: nombre });
+          return reply.code(403).send({ error: "Consulta no autorizada para reintentar IA" });
+        }
+
+        const queued = await enqueueClinicalExtraction({
+          consultaId,
+          seccionObjetivo: nombre || null,
+          trigger: "manual_frontend",
+        });
+
+        logger.info("[scribe-route] section:retry:queued", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          jobId: queued.jobId,
+          queued: queued.queued,
+          coalesced: queued.coalesced,
+          state: queued.state,
+        });
+        return {
+          queued: true,
+          job: queued,
+          message: "Se reintento la extraccion IA de esta seccion.",
+        };
+      } catch (error: any) {
+        logger.error("[scribe-route] section:retry:failed", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: "No se pudo reintentar esta seccion" });
+      }
+    }
+  );
+
+  app.post(
+    "/record/:consultaId/sections/:nombre/refine",
+    {
+      schema: { body: convertSchema(refineSectionSchema) },
+    },
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId, nombre } = request.params as any;
+      const { action } = request.body as any;
+
+      try {
+        logger.info("[scribe-route] section:refine:start", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+        });
+
+        const record = await scribeService.getRecordByConsultationForDoctor(consultaId, doctorId);
+        if (!record) return reply.code(404).send({ error: "Ficha no encontrada" });
+
+        const section = (record.sections || []).find((item: any) => item.nombre === nombre);
+        const sourceText = String(section?.textoActual || section?.textoSugeridoIa || "").trim();
+        if (!sourceText) {
+          return reply.code(400).send({ error: "La seccion no tiene texto para mejorar" });
+        }
+
+        const instructions: Record<string, string> = {
+          resumir: "Resume en una frase clinica corta sin perder datos relevantes.",
+          expandir: "Redacta con un poco mas de contexto clinico, sin inventar datos.",
+          corregir_estilo: "Corrige redaccion y estilo clinico manteniendo exactamente los datos.",
+          extraer_negativos: "Extrae solo negativos clinicos relevantes que esten explicitamente mencionados.",
+          formato_institucional: "Convierte a un parrafo breve para copiar en una plataforma institucional.",
+        };
+
+        const prompt = `Devuelve SOLO JSON valido con la clave "texto".
+Tarea: ${instructions[action] || instructions.corregir_estilo}
+Reglas:
+- No inventes datos.
+- No agregues diagnosticos.
+- Mantén negaciones y temporalidad.
+- Si el texto no contiene dato suficiente, devuelve el mismo texto corregido.
+
+Texto de la seccion:
+${sourceText}`;
+
+        const completion = await autoFillSemaphore.withPermit(() =>
+          openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0,
+            max_tokens: 450,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+          })
+        );
+
+        const parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        const suggestion = String(parsed.texto || "").trim();
+
+        logger.info("[scribe-route] section:refine:done", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+          suggestionChars: suggestion.length,
+        });
+
+        return { suggestion, action };
+      } catch (error: any) {
+        logger.error("[scribe-route] section:refine:failed", {
+          doctorId,
+          consultaId,
+          section: nombre,
+          action,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: "No se pudo mejorar esta seccion" });
+      }
+    }
+  );
 
   // POST /api/v1/scribe/transcribe-audio (legacy base64)
   app.post(
@@ -256,12 +635,24 @@ export async function scribeRoutes(app: FastifyInstance) {
         const buffer = Buffer.from(audio, "base64");
         const parsedConsultaId =
           parseConsultaId(consultaId) || parseConsultaId(request.headers["x-consulta-id"]);
+        logger.info("[scribe-route] transcribe-base64:start", {
+          doctorId,
+          consultaId: parsedConsultaId,
+          mimeType: mimeType || null,
+          bytes: buffer.length,
+        });
         const payload = await transcribeWithAudioStaging({
           doctorId,
           consultaId: parsedConsultaId,
           buffer,
           mimeType,
           fileName: `consulta.${extFromMime(mimeType)}`,
+        });
+        logger.info("[scribe-route] transcribe-base64:done", {
+          doctorId,
+          consultaId: parsedConsultaId,
+          bytes: buffer.length,
+          textChars: payload.formattedTranscription?.length || 0,
         });
         return payload;
       } catch (error: any) {
@@ -271,6 +662,12 @@ export async function scribeRoutes(app: FastifyInstance) {
           : message.toLowerCase().includes("autorizada")
           ? 403
           : 400;
+        logger.error("[scribe-route] transcribe-base64:failed", {
+          doctorId,
+          consultaId: parseConsultaId(consultaId) || null,
+          statusCode,
+          message: error?.message || "unknown",
+        });
         return reply.code(statusCode).send({ error: error.message || "Error al transcribir audio" });
       }
     }
@@ -289,12 +686,24 @@ export async function scribeRoutes(app: FastifyInstance) {
       const fileName = typeof filenameHeader === "string" ? filenameHeader : undefined;
       const consultaId = parseConsultaId(request.headers["x-consulta-id"]);
 
+      logger.info("[scribe-route] transcribe-binary:start", {
+        doctorId,
+        consultaId,
+        mimeType,
+        bytes: buffer.length,
+      });
       const payload = await transcribeWithAudioStaging({
         doctorId,
         consultaId,
         buffer,
         mimeType,
         fileName,
+      });
+      logger.info("[scribe-route] transcribe-binary:done", {
+        doctorId,
+        consultaId,
+        bytes: buffer.length,
+        textChars: payload.formattedTranscription?.length || 0,
       });
       return payload;
     } catch (error: any) {
@@ -304,6 +713,11 @@ export async function scribeRoutes(app: FastifyInstance) {
         : message.toLowerCase().includes("autorizada")
         ? 403
         : 400;
+      logger.error("[scribe-route] transcribe-binary:failed", {
+        doctorId,
+        statusCode,
+        message: error?.message || "unknown",
+      });
       return reply.code(statusCode).send({ error: error.message || "Error al transcribir audio" });
     }
   });
@@ -315,10 +729,54 @@ export async function scribeRoutes(app: FastifyInstance) {
       schema: { body: convertSchema(autoFillSchema) },
     },
     async (request, reply) => {
-      const { transcription } = request.body as any;
+      const doctorId = (request.user as any).sub;
+      const { transcription, consultaId } = request.body as any;
       const compactTranscription = compactTranscriptionForExtraction(transcription);
 
       try {
+        logger.info("[scribe-route] auto-fill:start", {
+          doctorId,
+          consultaId: consultaId || null,
+          transcriptChars: transcription.length,
+          compactedChars: compactTranscription.length,
+        });
+        let record: any = null;
+        if (consultaId) {
+          const consultation = await getDoctorConsultation(consultaId, doctorId);
+          if (!consultation) {
+            logger.warn("[scribe-route] auto-fill:not-authorized", { doctorId, consultaId });
+            return reply.code(403).send({ error: "Consulta no autorizada para autocompletar ficha" });
+          }
+          record = await scribeService.getOrCreateRecord(consultaId, { doctorId });
+          const segmentResult = await transcriptionSegmentService.ensureSegmentsFromTranscript({
+            consultaId,
+            transcript: compactTranscription,
+            origin: "fusion_sistema",
+            replaceConsultationTranscript: false,
+          });
+          const queued = await enqueueClinicalExtraction({
+            consultaId,
+            trigger: "manual_frontend",
+            segmentoHasta: segmentResult.maxSequence || undefined,
+          });
+          logger.info("[scribe-route] auto-fill:queued", {
+            doctorId,
+            consultaId,
+            fichaId: record.id,
+            jobId: queued.jobId,
+            queued: queued.queued,
+            coalesced: queued.coalesced,
+            state: queued.state,
+            segmentInserted: segmentResult.inserted,
+            maxSequence: segmentResult.maxSequence,
+          });
+          return {
+            queued: true,
+            job: queued,
+            message: "Procesamiento IA en cola. La ficha se actualizara por secciones.",
+          };
+        }
+
         const prompt = `Devuelve SOLO un JSON valido con estas claves exactas:
 motivo_consulta, tiempo_enfermedad, forma_inicio, curso_enfermedad, historia_cronologica, antecedentes, sintomas_principales, estado_funcional_basal, estudios_previos, notas_adicionales.
 Si no hay dato para una clave, devuelve "".
@@ -337,12 +795,43 @@ ${compactTranscription}`;
         );
 
         const raw = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        const medicalRecord = normalizeMedicalRecord(raw);
+        const filledSections = Object.values(medicalRecord).filter((value) => String(value || "").trim()).length;
+
+        if (record) {
+          for (const [section, value] of Object.entries(medicalRecord)) {
+            const suggestion = String(value || "").trim();
+            if (!suggestion) continue;
+            await scribeService.suggestSectionFromIa(record.id, section, suggestion, {
+              confianza: null,
+              evidencias: [
+                {
+                  textoEvidencia: compactTranscription.slice(0, 1200),
+                  confianza: null,
+                },
+              ],
+            });
+          }
+        }
+
+        logger.info("[scribe-route] auto-fill:legacy-done", {
+          doctorId,
+          consultaId: consultaId || null,
+          filledSections,
+          compactedChars: compactTranscription.length,
+          queue: autoFillSemaphore.getStats(),
+        });
         return {
-          medicalRecord: normalizeMedicalRecord(raw),
+          medicalRecord,
           queue: autoFillSemaphore.getStats(),
           compactedChars: compactTranscription.length,
         };
       } catch (error: any) {
+        logger.error("[scribe-route] auto-fill:failed", {
+          doctorId,
+          consultaId: consultaId || null,
+          message: error?.message || "unknown",
+        });
         return reply.code(400).send({ error: error.message || "Error al autocompletar ficha" });
       }
     }

@@ -7,7 +7,6 @@ import { StatusIndicator } from "./audio-player/StatusIndicator";
 import { Waveform } from "../../session/Waveform";
 import { generateWaveformData } from "../recording/audio-player/utils/waveformUtils";
 import { useState, useEffect } from "react";
-import { Slider } from "@/components/ui/slider";
 
 interface AudioPlayerProps {
   audioURL: string | null;

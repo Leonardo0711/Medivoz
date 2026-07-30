@@ -7,6 +7,7 @@ import {
   updateConsultationSchema 
 } from "./clinical.schema.js";
 import { convertSchema } from "../../core/utils/schema.js";
+import { logger } from "../../core/utils/logger.js";
 
 export async function clinicalRoutes(app: FastifyInstance) {
   // All routes in this module require authentication
@@ -69,6 +70,11 @@ export async function clinicalRoutes(app: FastifyInstance) {
       await clinicalService.deletePatient(id, doctorId);
       return reply.code(204).send();
     } catch (error: any) {
+      logger.error("[clinical-route] patient:delete:failed", {
+        doctorId,
+        patientId: id,
+        message: error?.message || "unknown",
+      });
       return reply.code(400).send({ error: error.message });
     }
   });

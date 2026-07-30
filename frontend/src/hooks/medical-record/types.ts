@@ -18,3 +18,21 @@ export interface PatientData {
   ocupacion: string | null;
   procedencia: string | null;
 }
+
+export interface SectionMeta {
+  nombre: keyof MedicalRecordFormData;
+  textoSugeridoIa: string | null;
+  textoActual: string | null;
+  resumenSugeridoIa: string | null;
+  resumenActual: string | null;
+  estado: "vacia" | "borrador_ia" | "revisada" | "bloqueada";
+  confianza: string | null;
+  origenDato: string | null;
+}
+
+export type SectionMetaMap = Partial<Record<keyof MedicalRecordFormData, SectionMeta>>;
+
+export interface RecordSummaryData {
+  resumenSugeridoIa: string;
+  resumenActual: string;
+}

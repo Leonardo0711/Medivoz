@@ -1,5 +1,20 @@
 import axios from 'axios';
 
+type ApiErrorPayload = {
+  error?: string;
+};
+
+export const getApiErrorStatus = (error: unknown): number | undefined =>
+  axios.isAxiosError<ApiErrorPayload>(error) ? error.response?.status : undefined;
+
+export const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  if (axios.isAxiosError<ApiErrorPayload>(error)) {
+    return error.response?.data?.error || error.message || fallback;
+  }
+
+  return error instanceof Error ? error.message || fallback : fallback;
+};
+
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 const api = axios.create({
@@ -50,7 +65,7 @@ api.interceptors.response.use(
           await refreshAuthSession(refreshToken);
           
           return api(originalRequest);
-        } catch (refreshError) {
+        } catch {
           // Refresh token also failed, logout
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

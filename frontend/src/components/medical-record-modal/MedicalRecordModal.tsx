@@ -1,5 +1,10 @@
-
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { MedicalRecordContainer } from "./MedicalRecordContainer";
 import { PatientInfoCard } from "../medical-record/PatientInfoCard";
@@ -12,34 +17,45 @@ interface MedicalRecordModalProps {
   sessionId?: string | null;
 }
 
-export function MedicalRecordModal({ 
-  open, 
-  onOpenChange, 
-  patientId, 
-  sessionId 
+export function MedicalRecordModal({
+  open,
+  onOpenChange,
+  patientId,
+  sessionId,
 }: MedicalRecordModalProps) {
-  const { 
-    formData, 
+  const {
+    formData,
     patientData,
-    transcriptionSnippet, 
+    transcriptionSnippet,
     fullTranscription,
     showFullTranscription,
-    isSaving, 
-    isExporting, 
-    handleChange, 
+    isSaving,
+    isExporting,
+    handleChange,
     toggleTranscriptionView,
-    handleSave, 
+    handleSave,
     handleExportPDF,
     setFormData,
-    recordExists,
-    refreshTranscription
+    recordSummary,
+    handleRecordSummaryChange,
+    sectionMeta,
+    validationWarnings,
+    handleAcceptSuggestion,
+    handleRejectSuggestion,
+    handleBlockSection,
+    handleRetrySection,
+    handleRefineSection,
+    refreshTranscription,
+    refreshRecordData,
+    editElapsedMs,
+    isEditTiming,
   } = useMedicalRecord(sessionId || null, patientId || null);
 
   const handleSaveAndClose = async () => {
     if (!patientId || !sessionId) {
       return;
     }
-    
+
     const success = await handleSave();
     if (success) {
       onOpenChange(false);
@@ -50,7 +66,7 @@ export function MedicalRecordModal({
     if (!patientId || !sessionId) {
       return;
     }
-    
+
     await handleExportPDF();
   };
 
@@ -70,11 +86,11 @@ export function MedicalRecordModal({
         </DialogHeader>
 
         {patientData && (
-          <PatientInfoCard 
-            name={patientData.nombre} 
-            age={patientData.edad} 
-            occupation={patientData.ocupacion} 
-            location={patientData.procedencia} 
+          <PatientInfoCard
+            name={patientData.nombre}
+            age={patientData.edad}
+            occupation={patientData.ocupacion}
+            location={patientData.procedencia}
           />
         )}
 
@@ -86,12 +102,24 @@ export function MedicalRecordModal({
           showFullTranscription={showFullTranscription}
           toggleTranscriptionView={toggleTranscriptionView}
           handleChange={handleChange}
+          sectionMeta={sectionMeta}
+          recordSummary={recordSummary}
+          onRecordSummaryChange={handleRecordSummaryChange}
+          validationWarnings={validationWarnings}
+          editElapsedMs={editElapsedMs}
+          isEditTiming={isEditTiming}
+          onAcceptSuggestion={handleAcceptSuggestion}
+          onRejectSuggestion={handleRejectSuggestion}
+          onBlockSection={handleBlockSection}
+          onRetrySection={handleRetrySection}
+          onRefineSection={handleRefineSection}
           isSaving={isSaving}
           isExporting={isExporting}
           onClose={() => onOpenChange(false)}
           onSave={handleSaveAndClose}
           onExport={handleExportPDFClick}
           refreshTranscription={refreshTranscription}
+          refreshRecordData={refreshRecordData}
           patientId={patientId}
           sessionId={sessionId}
         />

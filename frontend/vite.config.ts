@@ -37,16 +37,34 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'production' ? false : true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Split vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-select',
-            '@radix-ui/react-toast',
-          ],
-          'query-vendor': ['@tanstack/react-query'],
+        // Rolldown (Vite 8) requires a resolver function instead of the
+        // Rollup object form. Keep stable vendor chunks for browser caching.
+        manualChunks(id) {
+          const modulePath = id.replace(/\\/g, "/");
+          if (!modulePath.includes("/node_modules/")) return undefined;
+
+          const hasPackage = (packageName: string) =>
+            modulePath.includes(`/node_modules/${packageName}/`);
+
+          if (
+            hasPackage("react") ||
+            hasPackage("react-dom") ||
+            hasPackage("react-router-dom")
+          ) {
+            return "react-vendor";
+          }
+
+          if (
+            hasPackage("@radix-ui/react-dialog") ||
+            hasPackage("@radix-ui/react-dropdown-menu") ||
+            hasPackage("@radix-ui/react-select") ||
+            hasPackage("@radix-ui/react-toast")
+          ) {
+            return "ui-vendor";
+          }
+
+          if (hasPackage("@tanstack/react-query")) return "query-vendor";
+          return undefined;
         },
       },
     },

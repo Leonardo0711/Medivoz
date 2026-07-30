@@ -16,11 +16,10 @@ export default function Agents() {
           <div className="mx-auto w-full max-w-7xl space-y-10 px-4 py-7 md:px-6 md:py-8">
             <AgentsHeader />
             <Alert className="mx-auto max-w-4xl border-primary/20 bg-primary/5">
-              <AlertTitle>Como funciona esta seccion</AlertTitle>
+              <AlertTitle>Configuracion conectada al pipeline</AlertTitle>
               <AlertDescription>
-                Aqui defines y ajustas los agentes de apoyo (transcriptor/extractor). El autollenado de anamnesis
-                se ejecuta desde la pantalla de consulta en vivo al procesar audio, incluso si esta vista aun no muestra
-                mas agentes personalizados.
+                Los cambios del agente extractor se guardan como nueva version de prompt y se usan en las siguientes
+                extracciones de anamnesis. Cada ejecucion registra que version de prompt y modelo se utilizo.
               </AlertDescription>
             </Alert>
 

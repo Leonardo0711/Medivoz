@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { toast } from "sonner";
 import { MedicalRecordData } from "./types";
@@ -10,46 +9,50 @@ export function useMedicalRecordAutoFill() {
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [autoFillData, setAutoFillData] = useState<MedicalRecordData | null>(null);
 
-  const autoFillMedicalRecord = async (transcription: string): Promise<MedicalRecordData | null> => {
+  const autoFillMedicalRecord = async (
+    transcription: string,
+    options?: { consultaId?: string | null }
+  ): Promise<MedicalRecordData | null> => {
     if (!transcription || transcription.trim().length < 20) {
-      logger.error("Transcription too short:", transcription);
-      toast.error("La transcripción es demasiado corta para ser analizada");
+      logger.error("Transcription too short for auto-fill", { length: transcription?.length || 0 });
+      toast.error("La transcripcion es demasiado corta para ser analizada");
       return null;
     }
-    
+
     setIsAutoFilling(true);
-    toast.info("Analizando transcripción con IA...");
-    
+    toast.info("Analizando transcripcion con IA...");
+
     try {
-      // Create an AbortController for timeout handling
-      const { controller, clearTimeout } = createTimeoutController(30000);
-      
+      const { controller, clearTimeout } = createTimeoutController(90000);
+
       try {
-        const medicalRecord = await invokeAutoFillFunction(transcription, controller);
-        
-        // Clear the timeout since the request completed
+        const medicalRecord = await invokeAutoFillFunction(transcription, controller, options);
         clearTimeout();
-        
+
         if (medicalRecord) {
           setAutoFillData(medicalRecord);
           return medicalRecord;
         }
-        
+
         return null;
       } catch (abortError) {
-        // Clear the timeout to prevent memory leaks
         clearTimeout();
         throw abortError;
       }
     } catch (error: unknown) {
-      // Check if it's a timeout error
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
       if (errorMessage === "Auto-fill request timed out") {
-        logger.error("La solicitud de auto-rellenado ha excedido el tiempo límite");
-        toast.error("La solicitud ha tardado demasiado tiempo. Intente nuevamente");
+        logger.error("La solicitud de auto-rellenado excedio el tiempo limite");
+        toast.error("La IA sigue procesando o la cola esta ocupada. Intenta actualizar la ficha en unos segundos.");
       } else {
         logger.error("Error en autoFillMedicalRecord:", error);
-        toast.error("Error al procesar la transcripción: " + errorMessage);
+        const friendlyMessage =
+          errorMessage.includes("Network") || errorMessage.includes("ERR_NETWORK")
+            ? "No hay conexion con el servidor."
+            : errorMessage.includes("401")
+              ? "Tu sesion expiro. Vuelve a iniciar sesion."
+              : "No se pudo procesar la transcripcion con IA.";
+        toast.error(friendlyMessage);
       }
       return null;
     } finally {
@@ -60,6 +63,6 @@ export function useMedicalRecordAutoFill() {
   return {
     isAutoFilling,
     autoFillData,
-    autoFillMedicalRecord
+    autoFillMedicalRecord,
   };
 }

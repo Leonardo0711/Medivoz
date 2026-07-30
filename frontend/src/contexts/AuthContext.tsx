@@ -3,10 +3,13 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import api from "@/lib/api";
 
-type User = {
+export type User = {
   id: string;
   email: string;
   rol: string;
+  nombreCompleto?: string | null;
+  especialidadId?: number | null;
+  especialidad?: string | null;
 } | null;
 
 type AuthContextType = {
@@ -24,8 +27,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const checkAuth = async () => {
-      const accessToken = localStorage.getItem('access_token');
-      const refreshToken = localStorage.getItem('refresh_token');
+      const accessToken = localStorage.getItem("access_token");
+      const refreshToken = localStorage.getItem("refresh_token");
 
       if (!accessToken || !refreshToken) {
         setLoading(false);
@@ -33,17 +36,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        // In a custom backend, we could have a /me endpoint
-        // For now, let's assume we decode the JWT or just trust the local storage user if simple
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-        } else {
-          // If no user object, try to refresh or fetch profile
-          // await api.get('/auth/me') ...
-        }
+        const response = await api.get("/auth/me");
+        setUser(response.data);
+        localStorage.setItem("user", JSON.stringify(response.data));
       } catch (error) {
         logger.error("Auth check failed:", error);
+        const savedUser = localStorage.getItem("user");
+        if (savedUser) setUser(JSON.parse(savedUser));
       } finally {
         setLoading(false);
       }
@@ -55,9 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       setUser(null);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user");
       toast.success("Sesión cerrada exitosamente");
     } catch (error: unknown) {
       logger.error("Error during sign out:", error);
@@ -69,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     signOut,
     loading,
-    setUser
+    setUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { revokeBlobURL } from "@/utils/audio";
 
 export function useAudioCleanup(
@@ -7,11 +7,34 @@ export function useAudioCleanup(
   audioRef: React.RefObject<HTMLAudioElement>,
   playPromiseRef: React.RefObject<Promise<void> | null>
 ) {
-  useEffect(() => {
-    return () => {
-      cleanup();
+  const cleanup = useCallback(() => {
+    if (audioURL?.startsWith("blob:")) {
+      revokeBlobURL(audioURL);
+    }
+
+    const audioElement = audioRef.current;
+    if (!audioElement) return;
+
+    const resetAudio = () => {
+      audioElement.pause();
+      audioElement.src = "";
+      audioElement.load();
     };
-  }, []);
+
+    try {
+      if (playPromiseRef.current) {
+        void playPromiseRef.current.then(resetAudio, resetAudio);
+      } else {
+        resetAudio();
+      }
+    } catch (error) {
+      console.error("Error cleaning up audio:", error);
+    }
+  }, [audioRef, audioURL, playPromiseRef]);
+
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
 
   // Also clean up when audioURL changes
   useEffect(() => {
@@ -20,43 +43,7 @@ export function useAudioCleanup(
     if (audioURL === null) {
       cleanup();
     }
-  }, [audioURL]);
-
-  const cleanup = () => {
-    // Only revoke blob URL when it's actually a blob URL
-    if (audioURL && audioURL.startsWith('blob:')) {
-      revokeBlobURL(audioURL);
-    }
-    
-    if (audioRef.current) {
-      try {
-        // Properly handle play promise before pausing
-        if (playPromiseRef.current) {
-          playPromiseRef.current
-            .then(() => {
-              if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.src = "";
-                audioRef.current.load();
-              }
-            })
-            .catch(() => {
-              if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.src = "";
-                audioRef.current.load();
-              }
-            });
-        } else {
-          audioRef.current.pause();
-          audioRef.current.src = "";
-          audioRef.current.load();
-        }
-      } catch (e) {
-        console.error("Error cleaning up audio:", e);
-      }
-    }
-  };
+  }, [audioURL, cleanup]);
 
   return { cleanup };
 }
