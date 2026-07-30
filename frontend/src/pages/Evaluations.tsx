@@ -31,19 +31,23 @@ type CompletedScores = Record<Dimension, number>;
 
 const emptyScores = (): Scores => Object.fromEntries(dimensions.map(([key]) => [key, null])) as Scores;
 
-type Candidate = { consultaId: string; codigoConsulta: string; fecha: string; notaIaCaracteres: number };
+type Candidate = { consultaId: string; codigoConsulta: string; fecha: string; notaMedivozCaracteres: number };
 type EvaluationContext = {
   consultaId: string;
   codigoConsulta: string;
   fecha: string;
-  notaIa: string;
+  notaMedivozAsistida: string;
+  duracionMedivozMs: number;
   evaluacion: null | {
     notaEssi: string;
-    puntajesIa: CompletedScores;
+    puntajesMedivoz: CompletedScores;
     puntajesEssi: CompletedScores;
-    promedioIa: number;
+    promedioMedivoz: number;
     promedioEssi: number;
     diferenciaPromedio: number;
+    duracionMedivozMs: number;
+    duracionEssiMs: number;
+    diferenciaTiempoMs: number;
     comentarios: string | null;
   };
 };
@@ -54,6 +58,8 @@ const formatAverage = (scores: Scores) => {
   return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2);
 };
 
+const formatMinutes = (milliseconds: number) => `${(milliseconds / 60_000).toFixed(1)} min`;
+
 const isComplete = (scores: Scores): scores is CompletedScores =>
   Object.values(scores).every((value) => typeof value === "number");
 
@@ -62,8 +68,9 @@ export default function Evaluations() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [essiNote, setEssiNote] = useState("");
-  const [scoresIa, setScoresIa] = useState<Scores>(emptyScores);
+  const [scoresMedivoz, setScoresMedivoz] = useState<Scores>(emptyScores);
   const [scoresEssi, setScoresEssi] = useState<Scores>(emptyScores);
+  const [essiMinutes, setEssiMinutes] = useState("");
   const [comments, setComments] = useState("");
   const [createEvaluatorOpen, setCreateEvaluatorOpen] = useState(false);
   const [evaluatorForm, setEvaluatorForm] = useState({ email: "", password: "", nombreCompleto: "" });
@@ -86,20 +93,22 @@ export default function Evaluations() {
   useEffect(() => {
     const saved = contextQuery.data?.evaluacion;
     setEssiNote(saved?.notaEssi || "");
-    setScoresIa(saved?.puntajesIa || emptyScores());
+    setScoresMedivoz(saved?.puntajesMedivoz || emptyScores());
     setScoresEssi(saved?.puntajesEssi || emptyScores());
+    setEssiMinutes(saved?.duracionEssiMs ? String(Math.round(saved.duracionEssiMs / 60_000)) : "");
     setComments(saved?.comentarios || "");
   }, [contextQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedId || !isComplete(scoresIa) || !isComplete(scoresEssi)) {
+      if (!selectedId || !isComplete(scoresMedivoz) || !isComplete(scoresEssi)) {
         throw new Error("Complete los nueve criterios para ambas notas");
       }
       return api.put(`/evaluations/consultations/${selectedId}`, {
         notaEssi: essiNote,
-        puntajesIa: scoresIa,
+        puntajesMedivoz: scoresMedivoz,
         puntajesEssi: scoresEssi,
+        duracionEssiMs: Math.round(Number(essiMinutes) * 60_000),
         comentarios: comments || null,
       });
     },
@@ -121,13 +130,13 @@ export default function Evaluations() {
   });
 
   const completedDimensions = useMemo(
-    () => Object.values(scoresIa).filter((score) => score !== null).length + Object.values(scoresEssi).filter((score) => score !== null).length,
-    [scoresIa, scoresEssi]
+    () => Object.values(scoresMedivoz).filter((score) => score !== null).length + Object.values(scoresEssi).filter((score) => score !== null).length,
+    [scoresMedivoz, scoresEssi]
   );
-  const canSave = essiNote.trim().length >= 20 && isComplete(scoresIa) && isComplete(scoresEssi);
+  const canSave = essiNote.trim().length >= 20 && essiMinutes.trim() !== "" && Number.isFinite(Number(essiMinutes)) && Number(essiMinutes) >= 0 && isComplete(scoresMedivoz) && isComplete(scoresEssi);
 
-  const setScore = (target: "ia" | "essi", dimension: Dimension, value: string) => {
-    const setter = target === "ia" ? setScoresIa : setScoresEssi;
+  const setScore = (target: "medivoz" | "essi", dimension: Dimension, value: string) => {
+    const setter = target === "medivoz" ? setScoresMedivoz : setScoresEssi;
     setter((current) => ({ ...current, [dimension]: value ? Number(value) : null }));
   };
 
@@ -157,7 +166,7 @@ export default function Evaluations() {
                   {(candidatesQuery.data || []).map((candidate) => (
                     <button key={candidate.consultaId} onClick={() => setSelectedId(candidate.consultaId)} className={`rounded-md px-3 py-2.5 text-left text-sm transition-colors ${selectedId === candidate.consultaId ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
                       <span className="block font-mono text-xs">{candidate.codigoConsulta}</span>
-                      <span className="mt-1 block text-xs opacity-80">{candidate.notaIaCaracteres} caracteres</span>
+                      <span className="mt-1 block text-xs opacity-80">{candidate.notaMedivozCaracteres} caracteres</span>
                     </button>
                   ))}
                   {!candidatesQuery.data?.length && <p className="text-sm text-muted-foreground">No hay fichas con resumen.</p>}
@@ -171,13 +180,13 @@ export default function Evaluations() {
               <section className="min-w-0">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm"><Scale className="h-4 w-4 text-primary" /><span className="font-mono">{contextQuery.data.codigoConsulta}</span></div>
-                  <div className="flex gap-2 text-sm"><Badge variant="outline">IA: {formatAverage(scoresIa)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge></div>
+                  <div className="flex flex-wrap gap-2 text-sm"><Badge variant="outline">Medivoz: {formatAverage(scoresMedivoz)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge><Badge variant="outline">Edicion Medivoz: {formatMinutes(contextQuery.data.duracionMedivozMs)}</Badge></div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <section className="border p-4">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Resumen Medivoz</div>
-                    <Textarea value={contextQuery.data.notaIa} readOnly rows={11} className="resize-none bg-muted/30" />
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Nota Medivoz revisada por el medico</div>
+                    <Textarea value={contextQuery.data.notaMedivozAsistida} readOnly rows={11} className="resize-none bg-muted/30" />
                   </section>
                   <section className="border p-4">
                     <Label htmlFor="essi-note" className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Nota registrada en ESSI</Label>
@@ -187,17 +196,18 @@ export default function Evaluations() {
 
                 <section className="mt-5 overflow-x-auto border">
                   <table className="w-full min-w-[620px] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Criterio</th><th className="px-4 py-3">Medivoz</th><th className="px-4 py-3">ESSI</th></tr></thead>
+                    <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Criterio</th><th className="px-4 py-3">Medivoz asistido</th><th className="px-4 py-3">ESSI sin asistencia</th></tr></thead>
                     <tbody>
                       {dimensions.map(([key, label]) => (
-                        <tr key={key} className="border-t"><td className="px-4 py-2.5 font-medium">{label}</td><td className="px-4 py-2"><ScoreSelect value={scoresIa[key]} onChange={(value) => setScore("ia", key, value)} /></td><td className="px-4 py-2"><ScoreSelect value={scoresEssi[key]} onChange={(value) => setScore("essi", key, value)} /></td></tr>
+                        <tr key={key} className="border-t"><td className="px-4 py-2.5 font-medium">{label}</td><td className="px-4 py-2"><ScoreSelect value={scoresMedivoz[key]} onChange={(value) => setScore("medivoz", key, value)} /></td><td className="px-4 py-2"><ScoreSelect value={scoresEssi[key]} onChange={(value) => setScore("essi", key, value)} /></td></tr>
                       ))}
                     </tbody>
                   </table>
                 </section>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto]">
+                <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
                   <Textarea value={comments} onChange={(event) => setComments(event.target.value)} rows={3} placeholder="Comentarios del evaluador" className="resize-none" />
+                  <div><Label htmlFor="essi-minutes" className="text-xs">Tiempo ESSI (minutos)</Label><Input id="essi-minutes" type="number" min="0" value={essiMinutes} onChange={(event) => setEssiMinutes(event.target.value)} className="mt-1" /></div>
                   <Button className="h-auto min-h-11" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                     {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Guardar evaluacion
                   </Button>

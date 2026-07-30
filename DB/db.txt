@@ -813,13 +813,16 @@ Table evaluaciones_pdqi9 {
   id uuid [pk, default: `gen_random_uuid()`]
   consulta_id uuid [not null, ref: > consultas.id]
   evaluador_id uuid [ref: > usuarios.id]
-  nota_ia text [not null, note: "Instantanea del resumen Medivoz evaluado"]
+  nota_medivoz_asistida text [not null, note: "Instantanea de la nota Medivoz revisada o editada por el medico"]
   nota_essi text [not null, note: "Nota pegada por el evaluador desde la plataforma ESSI"]
-  puntajes_ia jsonb [not null, note: "Nueve puntajes PDQI-9, de 1 a 5"]
+  puntajes_medivoz jsonb [not null, note: "Nueve puntajes PDQI-9 de la documentacion medico asistido, de 1 a 5"]
   puntajes_essi jsonb [not null, note: "Nueve puntajes PDQI-9, de 1 a 5"]
-  promedio_ia decimal(4,2) [not null]
+  promedio_medivoz decimal(4,2) [not null]
   promedio_essi decimal(4,2) [not null]
-  diferencia_promedio decimal(4,2) [not null, note: "Promedio IA menos promedio ESSI"]
+  diferencia_promedio decimal(4,2) [not null, note: "Promedio Medivoz asistido menos promedio ESSI"]
+  duracion_medivoz_ms bigint [not null, default: 0, note: "Tiempo activo medido mientras el medico revisa o edita Medivoz"]
+  duracion_essi_ms bigint [not null, default: 0, note: "Tiempo de documentacion ESSI registrado por el evaluador"]
+  diferencia_tiempo_ms bigint [not null, default: 0, note: "Tiempo Medivoz asistido menos tiempo ESSI"]
   comentarios text
   creado_en timestamptz [not null, default: `now()`]
   actualizado_en timestamptz [not null, default: `now()`]
@@ -833,7 +836,7 @@ Table evaluaciones_pdqi9 {
   Note: '''
   Evaluacion humana de calidad documental mediante PDQI-9.
   El evaluador no graba ni edita la consulta: compara el resumen de Medivoz
-  contra la nota que el medico registro en ESSI. Las notas se guardan como
+  contra la nota que el medico registro sin asistencia en ESSI. Las notas se guardan como
   instantaneas para que los resultados sigan siendo reproducibles.
   '''
 }

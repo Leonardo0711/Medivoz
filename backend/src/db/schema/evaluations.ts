@@ -1,4 +1,4 @@
-import { jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { users } from "./auth.js";
 import { consultations } from "./clinical.js";
 
@@ -23,13 +23,16 @@ export const pdqi9Evaluations = pgTable(
       .notNull()
       .references(() => consultations.id, { onDelete: "cascade" }),
     evaluadorId: uuid("evaluador_id").references(() => users.id, { onDelete: "set null" }),
-    notaIa: text("nota_ia").notNull(),
+    notaMedivozAsistida: text("nota_medivoz_asistida").notNull(),
     notaEssi: text("nota_essi").notNull(),
-    puntajesIa: jsonb("puntajes_ia").$type<Pdqi9Scores>().notNull(),
+    puntajesMedivoz: jsonb("puntajes_medivoz").$type<Pdqi9Scores>().notNull(),
     puntajesEssi: jsonb("puntajes_essi").$type<Pdqi9Scores>().notNull(),
-    promedioIa: numeric("promedio_ia", { precision: 4, scale: 2 }).notNull(),
+    promedioMedivoz: numeric("promedio_medivoz", { precision: 4, scale: 2 }).notNull(),
     promedioEssi: numeric("promedio_essi", { precision: 4, scale: 2 }).notNull(),
     diferenciaPromedio: numeric("diferencia_promedio", { precision: 4, scale: 2 }).notNull(),
+    duracionMedivozMs: bigint("duracion_medivoz_ms", { mode: "number" }).notNull(),
+    duracionEssiMs: bigint("duracion_essi_ms", { mode: "number" }).notNull(),
+    diferenciaTiempoMs: bigint("diferencia_tiempo_ms", { mode: "number" }).notNull(),
     comentarios: text("comentarios"),
     createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
