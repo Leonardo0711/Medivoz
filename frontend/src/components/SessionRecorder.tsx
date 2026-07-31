@@ -204,8 +204,8 @@ export const SessionRecorder = memo(
       >
         {isActive && <div className="absolute inset-0 animate-pulse bg-primary/5" />}
 
-        <div className="relative z-10 flex flex-col items-center gap-4 p-6">
-          <div className="flex w-full items-center justify-between border-b pb-4">
+        <div className="relative z-10 flex flex-col items-center gap-3 p-4">
+          <div className="flex w-full items-center justify-between border-b pb-3">
             <div className="flex items-center gap-2.5">
               <div
                 className={cn(
@@ -255,7 +255,7 @@ export const SessionRecorder = memo(
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-muted/50 p-1.5">
+            <TabsList className="mb-3 grid w-full grid-cols-2 rounded-lg bg-muted/50 p-1.5">
               <TabsTrigger
                 value="record"
                 disabled={isProcessing || isAudioRecording}
@@ -275,7 +275,7 @@ export const SessionRecorder = memo(
             </TabsList>
 
             <TabsContent value="record" className="mt-0">
-              <div className="w-full py-2">
+              <div className="w-full py-0">
                 <RecordingControls
                   isRecording={isAudioRecording}
                   isPaused={isAudioPaused}
@@ -295,7 +295,7 @@ export const SessionRecorder = memo(
             </TabsContent>
 
             <TabsContent value="upload" className="mt-0">
-              <div className="w-full py-2">
+              <div className="w-full py-0">
                 <AudioFileUpload
                   onFileSelected={handleFileUpload}
                   isProcessing={isUploadTranscribing}

@@ -189,11 +189,11 @@ export default function Session() {
   }, [currentSessionId, refreshAnamnesisPhase, refreshRecordData]);
 
   return (
-    <div className="flex min-h-screen overflow-hidden bg-background">
+    <div className="flex min-h-screen bg-background xl:h-dvh xl:overflow-hidden">
       <Sidebar />
-      <div className="app-content flex-1 overflow-auto">
-        <div className="container mx-auto max-w-[1600px] px-4 py-7 md:px-8 md:py-8">
-          <header className="mb-6 rounded-lg border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+      <div className="app-content flex min-w-0 flex-1 flex-col max-xl:overflow-y-auto xl:overflow-hidden">
+        <div className="container mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-4 py-5 md:px-6 md:py-6 xl:min-h-0">
+          <header className="mb-4 shrink-0 rounded-lg border border-border/60 bg-card p-5 shadow-sm sm:p-6">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -221,8 +221,8 @@ export default function Session() {
             </div>
           </header>
 
-          <div className="grid grid-cols-1 gap-6 pb-10 xl:grid-cols-12 xl:gap-6">
-            <div className="flex flex-col gap-6 xl:col-span-4">
+          <div className="grid grid-cols-1 gap-4 pb-8 xl:min-h-0 xl:flex-1 xl:grid-cols-12 xl:gap-5 xl:pb-0">
+            <div className="flex flex-col gap-4 xl:col-span-4 xl:min-h-0 xl:overflow-hidden">
               <SessionPatientCard
                 selectedPatient={selectedPatient}
                 onPatientSelect={setSelectedPatient}
@@ -236,7 +236,7 @@ export default function Session() {
               />
             </div>
 
-            <div className="flex min-h-[600px] flex-col xl:col-span-8 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+            <div className="flex min-h-[600px] flex-col xl:col-span-8 xl:min-h-0 xl:h-full">
               <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-card shadow-sm">
                 <Tabs defaultValue="anamnesis" className="flex h-full min-h-0 flex-col">
 

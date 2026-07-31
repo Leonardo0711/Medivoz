@@ -6,7 +6,7 @@ const transcriptionModel =
   process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "gpt-4o-transcribe";
 const transcriptionPrompt =
   process.env.OPENAI_REALTIME_TRANSCRIPTION_PROMPT ||
-  "Transcribe en espanol medico. No inventes datos. Conserva terminos clinicos, dosis, fechas y negaciones.";
+  "Transcribe literalmente solo las palabras audibles en espanol. No resumas, no redactes, no completes frases, no conviertas el habla en nota clinica y no inventes datos. Si el audio es silencio, ruido o no es inteligible, no emitas texto.";
 const realtimeUrl = "wss://api.openai.com/v1/realtime?intent=transcription";
 
 const buildSessionUpdate = () => ({
@@ -46,6 +46,7 @@ export class OpenAIRealtimeService {
   private pendingFlushResolve: (() => void) | null = null;
   private sessionReady = false;
   private hasUncommittedAudio = false;
+  private lastAudioSentAt = 0;
 
   constructor(
     onTranscriptionDelta: (delta: string) => void,
@@ -154,10 +155,22 @@ export class OpenAIRealtimeService {
         });
         break;
       case "conversation.item.input_audio_transcription.delta":
-        if (event.delta) this.onTranscriptionDelta(event.delta);
+        if (event.delta && Date.now() - this.lastAudioSentAt <= 2_500) {
+          this.onTranscriptionDelta(event.delta);
+        }
         break;
       case "conversation.item.input_audio_transcription.completed":
-        if (event.transcript) this.onTranscriptionFinal(event.transcript);
+        if (event.transcript) {
+          const ageSinceAudioMs = Date.now() - this.lastAudioSentAt;
+          if (ageSinceAudioMs <= 6_500) {
+            this.onTranscriptionFinal(event.transcript);
+          } else {
+            logger.warn("[realtime] openai:discarded-late-transcript", {
+              ageSinceAudioMs,
+              characters: String(event.transcript).length,
+            });
+          }
+        }
         this.resolvePendingFlush();
         break;
       case "input_audio_buffer.speech_started":
@@ -190,6 +203,7 @@ export class OpenAIRealtimeService {
       audio: base64Chunk,
     });
     this.hasUncommittedAudio = true;
+    this.lastAudioSentAt = Date.now();
     return true;
   }
 

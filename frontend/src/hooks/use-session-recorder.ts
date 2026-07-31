@@ -24,6 +24,24 @@ interface UseSessionRecorderReturn {
 }
 
 const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const MIN_VOICE_RMS = 0.0035;
+const VOICE_START_CHUNKS = 2;
+const VOICE_SILENCE_TAIL_CHUNKS = 8;
+
+type VoiceGateState = {
+  noiseFloor: number;
+  activeChunks: number;
+  silentChunks: number;
+  isSendingVoice: boolean;
+};
+
+const createVoiceGateState = (): VoiceGateState => ({
+  noiseFloor: 0.001,
+  activeChunks: 0,
+  silentChunks: 0,
+  isSendingVoice: false,
+});
+
 type WindowWithLegacyAudioContext = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
 };
@@ -45,12 +63,14 @@ export function useSessionRecorder({
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioOutputGainRef = useRef<GainNode | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const activeConsultaIdRef = useRef<string | null>(null);
   const accumulatedTranscriptionRef = useRef("");
   const partialTranscriptionRef = useRef("");
   const refreshingRealtimeTokenRef = useRef(false);
   const audioCursorMsRef = useRef(0);
+  const voiceGateRef = useRef<VoiceGateState>(createVoiceGateState());
   const joinWaiterRef = useRef<{
     consultaId: string;
     resolve: (ready: boolean) => void;
@@ -211,7 +231,14 @@ export function useSessionRecorder({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       const AudioContextClass = window.AudioContext || (window as WindowWithLegacyAudioContext).webkitAudioContext;
       if (!AudioContextClass) {
         toast.error("Este navegador no soporta captura de audio en vivo");
@@ -221,17 +248,21 @@ export function useSessionRecorder({
       const audioContext = new AudioContextClass();
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentOutput = audioContext.createGain();
+      silentOutput.gain.value = 0;
       const targetSampleRate = 24000;
 
       audioStreamRef.current = stream;
       audioContextRef.current = audioContext;
       audioSourceRef.current = source;
       audioProcessorRef.current = processor;
+      audioOutputGainRef.current = silentOutput;
 
       activeConsultaIdRef.current = currentDbId;
       accumulatedTranscriptionRef.current = "";
       partialTranscriptionRef.current = "";
       audioCursorMsRef.current = 0;
+      voiceGateRef.current = createVoiceGateState();
       onTranscriptionReady("");
       setRealtimeStatus("connecting");
 
@@ -252,13 +283,46 @@ export function useSessionRecorder({
         if (!socketRef.current || !activeConsultaIdRef.current) return;
 
         const input = event.inputBuffer.getChannelData(0);
-        const pcm16 = floatTo16BitPcm(downsampleBuffer(input, audioContext.sampleRate, targetSampleRate));
-        if (!pcm16.byteLength) return;
+        const rms = calculateRms(input);
+        const gate = voiceGateRef.current;
+        const threshold = Math.max(MIN_VOICE_RMS, gate.noiseFloor * 3);
+        const hasVoice = rms >= threshold;
 
         const startMs = audioCursorMsRef.current;
-        const durationMs = Math.round((pcm16.length / targetSampleRate) * 1000);
+        const durationMs = Math.round((input.length / audioContext.sampleRate) * 1000);
         const endMs = startMs + durationMs;
         audioCursorMsRef.current = endMs;
+
+        if (!gate.isSendingVoice) {
+          if (hasVoice) {
+            gate.activeChunks += 1;
+          } else {
+            gate.activeChunks = 0;
+            gate.noiseFloor = gate.noiseFloor * 0.98 + rms * 0.02;
+          }
+
+          if (gate.activeChunks < VOICE_START_CHUNKS) return;
+          gate.isSendingVoice = true;
+          gate.silentChunks = 0;
+        }
+
+        if (hasVoice) {
+          gate.silentChunks = 0;
+        } else {
+          gate.silentChunks += 1;
+        }
+
+        if (gate.silentChunks > VOICE_SILENCE_TAIL_CHUNKS) {
+          gate.isSendingVoice = false;
+          gate.activeChunks = 0;
+          gate.silentChunks = 0;
+          return;
+        }
+
+        const pcm16 = floatTo16BitPcm(
+          downsampleBuffer(input, audioContext.sampleRate, targetSampleRate)
+        );
+        if (!pcm16.byteLength) return;
 
         socketRef.current.emit("audio_chunk", {
           consultaId: activeConsultaIdRef.current,
@@ -271,7 +335,9 @@ export function useSessionRecorder({
       };
 
       source.connect(processor);
-      processor.connect(audioContext.destination);
+      processor.connect(silentOutput);
+      silentOutput.connect(audioContext.destination);
+      await audioContext.resume();
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -292,10 +358,12 @@ export function useSessionRecorder({
   const handleStopRecording = async () => {
     audioProcessorRef.current?.disconnect();
     audioSourceRef.current?.disconnect();
+    audioOutputGainRef.current?.disconnect();
     audioStreamRef.current?.getTracks().forEach((track) => track.stop());
     void audioContextRef.current?.close();
     audioProcessorRef.current = null;
     audioSourceRef.current = null;
+    audioOutputGainRef.current = null;
     audioStreamRef.current = null;
     audioContextRef.current = null;
 
@@ -373,4 +441,14 @@ const floatTo16BitPcm = (input: Float32Array) => {
     output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
   }
   return output;
+};
+
+const calculateRms = (input: Float32Array) => {
+  if (!input.length) return 0;
+
+  let sumSquares = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    sumSquares += input[i] * input[i];
+  }
+  return Math.sqrt(sumSquares / input.length);
 };

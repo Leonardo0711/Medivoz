@@ -34,9 +34,9 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-5">
+      <CardContent className="pt-3">
         {selectedPatient ? (
-          <div className="animate-in slide-in-from-bottom-2 space-y-4 fade-in">
+          <div className="animate-in slide-in-from-bottom-2 space-y-3 fade-in">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                 {selectedPatient.nombre.substring(0, 2).toUpperCase()}
