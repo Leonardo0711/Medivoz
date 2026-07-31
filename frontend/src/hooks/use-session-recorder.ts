@@ -13,6 +13,7 @@ interface UseSessionRecorderProps {
 
 interface UseSessionRecorderReturn {
   isRecording: boolean;
+  realtimeStatus: "idle" | "connecting" | "ready" | "unavailable";
   sessionId: string;
   recordingTime: number;
   dbSessionId: string | null;
@@ -34,6 +35,7 @@ export function useSessionRecorder({
   onSessionCreated,
 }: UseSessionRecorderProps): UseSessionRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<UseSessionRecorderReturn["realtimeStatus"]>("idle");
   const [sessionId, setSessionId] = useState("");
   const [dbSessionId, setDbSessionId] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -49,6 +51,11 @@ export function useSessionRecorder({
   const partialTranscriptionRef = useRef("");
   const refreshingRealtimeTokenRef = useRef(false);
   const audioCursorMsRef = useRef(0);
+  const joinWaiterRef = useRef<{
+    consultaId: string;
+    resolve: (ready: boolean) => void;
+    timeoutId: number;
+  } | null>(null);
 
   useEffect(() => {
     const accessToken = localStorage.getItem("access_token");
@@ -69,12 +76,22 @@ export function useSessionRecorder({
     socketRef.current.on("connect", () => {
       const consultaId = activeConsultaIdRef.current;
       if (consultaId) {
+        setRealtimeStatus("connecting");
         socketRef.current?.emit("join_consultation", { consultaId });
       }
     });
 
-    socketRef.current.on("consultation_joined", (data: { consultaId: string; resumed?: boolean }) => {
+    socketRef.current.on("consultation_joined", (data: { consultaId: string; resumed?: boolean; realtimeReady?: boolean }) => {
       logger.log("Joined consultation room:", data);
+      const ready = data?.realtimeReady !== false;
+      setRealtimeStatus(ready ? "ready" : "unavailable");
+
+      const waiter = joinWaiterRef.current;
+      if (waiter?.consultaId === data.consultaId) {
+        window.clearTimeout(waiter.timeoutId);
+        joinWaiterRef.current = null;
+        waiter.resolve(ready);
+      }
     });
 
     socketRef.current.on("transcription_sync", (data: { text: string }) => {
@@ -86,6 +103,7 @@ export function useSessionRecorder({
     socketRef.current.on("transcription_delta", (data: { delta: string }) => {
       const delta = data?.delta || "";
       if (!delta) return;
+      setRealtimeStatus("ready");
       partialTranscriptionRef.current += delta;
       const base = accumulatedTranscriptionRef.current.trim();
       const partial = partialTranscriptionRef.current.trim();
@@ -95,6 +113,7 @@ export function useSessionRecorder({
     socketRef.current.on("transcription_final", (data: { text: string }) => {
       const chunk = (data?.text || "").trim();
       if (!chunk) return;
+      setRealtimeStatus("ready");
 
       const nextText = accumulatedTranscriptionRef.current
         ? `${accumulatedTranscriptionRef.current}\n${chunk}`
@@ -108,6 +127,7 @@ export function useSessionRecorder({
     socketRef.current.on("transcription_error", (data: { message?: string }) => {
       const message = data?.message || "Error en transcripcion realtime";
       logger.error("Socket transcription error:", message);
+      setRealtimeStatus("unavailable");
       toast.error(message);
     });
 
@@ -137,6 +157,12 @@ export function useSessionRecorder({
     });
 
     return () => {
+      const waiter = joinWaiterRef.current;
+      if (waiter) {
+        window.clearTimeout(waiter.timeoutId);
+        waiter.resolve(false);
+        joinWaiterRef.current = null;
+      }
       socketRef.current?.disconnect();
     };
   }, [onTranscriptionReady]);
@@ -207,8 +233,20 @@ export function useSessionRecorder({
       partialTranscriptionRef.current = "";
       audioCursorMsRef.current = 0;
       onTranscriptionReady("");
+      setRealtimeStatus("connecting");
 
-      socketRef.current?.emit("join_consultation", { consultaId: currentDbId });
+      const realtimeReady = await new Promise<boolean>((resolve) => {
+        const timeoutId = window.setTimeout(() => {
+          if (joinWaiterRef.current?.consultaId === currentDbId) {
+            joinWaiterRef.current = null;
+          }
+          resolve(false);
+        }, 12_000);
+
+        joinWaiterRef.current = { consultaId: currentDbId, resolve, timeoutId };
+        socketRef.current?.emit("join_consultation", { consultaId: currentDbId });
+      });
+      setRealtimeStatus(realtimeReady ? "ready" : "unavailable");
 
       processor.onaudioprocess = (event) => {
         if (!socketRef.current || !activeConsultaIdRef.current) return;
@@ -267,6 +305,7 @@ export function useSessionRecorder({
     }
 
     activeConsultaIdRef.current = null;
+    setRealtimeStatus("idle");
     setIsRecording(false);
     if (timerId) {
       clearInterval(timerId);
@@ -291,6 +330,7 @@ export function useSessionRecorder({
 
   return {
     isRecording,
+    realtimeStatus,
     sessionId,
     recordingTime,
     dbSessionId,

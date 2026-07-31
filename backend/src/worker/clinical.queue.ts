@@ -85,7 +85,8 @@ const upsertQueueJob = async (
 
 export const enqueueClinicalExtraction = async (payload: ClinicalExtractionJobData) => {
   const section = payload.seccionObjetivo || "all";
-  const baseJobId = `extract:${payload.consultaId}:${section}`;
+  const safeSection = section.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const baseJobId = `extract-${payload.consultaId}-${safeSection}`;
 
   const firstAttempt = await upsertQueueJob(baseJobId, payload);
   if (firstAttempt.queued || firstAttempt.coalesced || firstAttempt.state !== "active") {
@@ -96,5 +97,5 @@ export const enqueueClinicalExtraction = async (payload: ClinicalExtractionJobDa
     consultaId: payload.consultaId,
     section,
   });
-  return upsertQueueJob(`${baseJobId}:pending`, payload);
+  return upsertQueueJob(`${baseJobId}-pending`, payload);
 };

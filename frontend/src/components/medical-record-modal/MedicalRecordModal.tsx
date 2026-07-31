@@ -89,8 +89,6 @@ export function MedicalRecordModal({
           <PatientInfoCard
             name={patientData.nombre}
             age={patientData.edad}
-            occupation={patientData.ocupacion}
-            location={patientData.procedencia}
           />
         )}
 

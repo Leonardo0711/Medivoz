@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Activity, Mic, Radio, Upload } from "lucide-react";
+import { Activity, Loader2, Mic, Radio, Upload, Wifi, WifiOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +35,7 @@ export const SessionRecorder = memo(
       sessionId,
       dbSessionId,
       recordingTime,
+      realtimeStatus,
       generateSessionId,
       handleStartRecording: startSessionRecording,
       handleStopRecording: stopSessionRecording,
@@ -220,7 +221,22 @@ export const SessionRecorder = memo(
               </div>
             </div>
 
-            {isActive ? (
+            {realtimeStatus === "connecting" ? (
+              <Badge variant="secondary" className="border-amber-200 bg-amber-50 text-xs text-amber-800">
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Conectando en vivo
+              </Badge>
+            ) : isActive && realtimeStatus === "ready" ? (
+              <Badge variant="secondary" className="border-emerald-200 bg-emerald-50 text-xs text-emerald-700">
+                <Wifi className="mr-1.5 h-3.5 w-3.5" />
+                Transcribiendo en vivo
+              </Badge>
+            ) : isActive && realtimeStatus === "unavailable" ? (
+              <Badge variant="secondary" className="border-red-200 bg-red-50 text-xs text-red-700">
+                <WifiOff className="mr-1.5 h-3.5 w-3.5" />
+                Canal en vivo no disponible
+              </Badge>
+            ) : isActive ? (
               <Badge
                 variant="secondary"
                 className={cn(

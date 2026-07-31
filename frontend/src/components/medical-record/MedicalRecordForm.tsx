@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { RecordSummaryData, SectionMetaMap } from "@/hooks/medical-record/types";
 import { cn } from "@/lib/utils";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MedicalRecordFormData {
   motivo_consulta: string;
@@ -147,9 +147,9 @@ const fields: FieldConfig[] = [
 
 const fieldGroups: { id: string; label: string; fields: (keyof MedicalRecordFormData)[] }[] = [
   { id: "cuadro", label: "Cuadro actual", fields: ["motivo_consulta", "tiempo_enfermedad", "forma_inicio", "curso_enfermedad"] },
-  { id: "historia", label: "Historia y sintomas", fields: ["historia_cronologica", "sintomas_principales"] },
-  { id: "contexto", label: "Antecedentes y estado basal", fields: ["antecedentes", "estado_funcional_basal"] },
-  { id: "apoyo", label: "Estudios y notas", fields: ["estudios_previos", "notas_adicionales"] },
+  { id: "historia", label: "Historia", fields: ["historia_cronologica", "sintomas_principales"] },
+  { id: "contexto", label: "Antecedentes", fields: ["antecedentes", "estado_funcional_basal"] },
+  { id: "apoyo", label: "Estudios", fields: ["estudios_previos", "notas_adicionales"] },
 ];
 
 export const MedicalRecordForm = memo(function MedicalRecordForm({
@@ -383,55 +383,73 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
         </div>
       )}
 
-      <Accordion type="multiple" defaultValue={["cuadro", "historia"]} className="space-y-2">
+      <Tabs defaultValue="cuadro" className="space-y-3">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 lg:grid-cols-5">
+          {fieldGroups.map((group) => {
+            const groupFields = fields.filter((item) => group.fields.includes(item.field));
+            const groupReviewed = groupFields.filter(({ field }) => isReviewed(field)).length;
+            const groupPending = groupFields.filter(({ field }) => hasPending(field)).length;
+            return (
+              <TabsTrigger key={group.id} value={group.id} className="min-h-11 gap-1 px-2 py-2 text-xs">
+                <span>{group.label}</span>
+                <span className={cn("text-[10px]", groupPending ? "text-amber-700" : "text-muted-foreground")}>
+                  {groupReviewed}/{groupFields.length}
+                </span>
+              </TabsTrigger>
+            );
+          })}
+          <TabsTrigger value="resumen" className="min-h-11 px-2 py-2 text-xs">
+            Resumen
+          </TabsTrigger>
+        </TabsList>
+
         {fieldGroups.map((group) => {
           const groupFields = fields.filter((item) => group.fields.includes(item.field));
-          const groupReviewed = groupFields.filter(({ field }) => isReviewed(field)).length;
-          const groupPending = groupFields.filter(({ field }) => hasPending(field)).length;
           return (
-            <AccordionItem key={group.id} value={group.id} className="rounded-md border px-3">
-              <AccordionTrigger className="py-3 text-sm hover:no-underline">
-                <span className="flex items-center gap-2"><span>{group.label}</span><span className="text-xs font-normal text-muted-foreground">{groupReviewed}/{groupFields.length} validadas{groupPending ? ` · ${groupPending} pendientes IA` : ""}</span></span>
-              </AccordionTrigger>
-              <AccordionContent className="pb-3"><div className="grid grid-cols-1 gap-3 md:grid-cols-2">{groupFields.map(renderField)}</div></AccordionContent>
-            </AccordionItem>
+            <TabsContent key={group.id} value={group.id} className="mt-0">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {groupFields.map(renderField)}
+              </div>
+            </TabsContent>
           );
         })}
-      </Accordion>
 
-      <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <FileText className="h-4 w-4 text-primary" />
-              Resumen narrativo final
-            </h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Un solo parrafo para copiar al sistema institucional del doctor.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {summaryWasGenerated && (
-              <Badge variant="outline" className="bg-background text-[11px]">
-                IA
-              </Badge>
-            )}
-            {summaryWasEdited && (
-              <Badge variant="secondary" className="text-[11px]">
-                Editado
-              </Badge>
-            )}
-          </div>
-        </div>
+        <TabsContent value="resumen" className="mt-0">
+          <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <FileText className="h-4 w-4 text-primary" />
+                  Resumen narrativo final
+                </h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Un solo parrafo para copiar al sistema institucional del doctor.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {summaryWasGenerated && (
+                  <Badge variant="outline" className="bg-background text-[11px]">
+                    IA
+                  </Badge>
+                )}
+                {summaryWasEdited && (
+                  <Badge variant="secondary" className="text-[11px]">
+                    Editado
+                  </Badge>
+                )}
+              </div>
+            </div>
 
-        <Textarea
-          value={summaryValue}
-          onChange={(event) => onRecordSummaryChange?.(event.target.value)}
-          rows={5}
-          placeholder="Ej: Paciente refiere una semana de enfermedad con sintomas principales descritos durante la consulta..."
-          className="resize-none bg-background"
-        />
-      </div>
+            <Textarea
+              value={summaryValue}
+              onChange={(event) => onRecordSummaryChange?.(event.target.value)}
+              rows={7}
+              placeholder="Ej: Paciente refiere una semana de enfermedad con sintomas principales descritos durante la consulta..."
+              className="resize-none bg-background"
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 });

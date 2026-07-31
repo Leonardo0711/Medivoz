@@ -47,6 +47,8 @@ type StopPayload = {
 const runtimeSessions = new Map<string, RuntimeSession>();
 const pendingRuntimeSessions = new Map<string, Promise<RuntimeSession>>();
 const realtimeFailureNotifiedAt = new Map<string, number>();
+const realtimeRetryAfter = new Map<string, number>();
+const REALTIME_RETRY_COOLDOWN_MS = 10_000;
 const IDLE_SESSION_TTL_MS = Math.max(
   30_000,
   Number.parseInt(process.env.REALTIME_IDLE_SESSION_TTL_MS ?? "300000", 10) || 300000
@@ -228,6 +230,12 @@ export function setupSockets(app: FastifyInstance) {
       return pending;
     }
 
+    const retryAfter = realtimeRetryAfter.get(consultaId) || 0;
+    if (retryAfter > Date.now()) {
+      throw new Error("Canal realtime temporalmente en espera de reconexion");
+    }
+    realtimeRetryAfter.delete(consultaId);
+
     const connection = (async () => {
       const nextSequence = await fetchNextSequence(consultaId);
       const runtime: RuntimeSession = {
@@ -291,6 +299,7 @@ export function setupSockets(app: FastifyInstance) {
       await aiService.connect();
       runtime.service = aiService;
       runtimeSessions.set(consultaId, runtime);
+      realtimeRetryAfter.delete(consultaId);
       logger.info("[socket] realtime-session:ready", {
         consultaId,
         nextSequence,
@@ -304,6 +313,7 @@ export function setupSockets(app: FastifyInstance) {
       return await connection;
     } catch (error) {
       runtimeSessions.delete(consultaId);
+      realtimeRetryAfter.set(consultaId, Date.now() + REALTIME_RETRY_COOLDOWN_MS);
       logger.error("[socket] realtime-session:failed", {
         consultaId,
         message: error instanceof Error ? error.message : String(error),
@@ -403,13 +413,21 @@ export function setupSockets(app: FastifyInstance) {
             endMs: safeEndMs || null,
           });
         }
-        session.service.sendAudio(base64Audio);
+        const sent = session.service.sendAudio(base64Audio);
+        if (!sent) {
+          session.service.disconnect();
+          runtimeSessions.delete(consultaId);
+          throw new Error("El canal realtime se cerro y sera reconectado");
+        }
       } catch (error) {
-        logger.error("Error handling audio chunk:", error);
         const now = Date.now();
         const lastNotified = realtimeFailureNotifiedAt.get(consultaId) || 0;
         if (now - lastNotified > 10_000) {
           realtimeFailureNotifiedAt.set(consultaId, now);
+          logger.error("[socket] audio-chunk:realtime-unavailable", {
+            consultaId,
+            message: error instanceof Error ? error.message : String(error),
+          });
           socket.emit("transcription_error", {
             message: "Transcripcion en vivo no disponible. Se procesara el audio al detener.",
           });
@@ -436,8 +454,9 @@ export function setupSockets(app: FastifyInstance) {
           await runtime.persistChain.catch(() => {});
           runtime.service.disconnect();
           runtimeSessions.delete(consultaId);
-          realtimeFailureNotifiedAt.delete(consultaId);
         }
+        realtimeFailureNotifiedAt.delete(consultaId);
+        realtimeRetryAfter.delete(consultaId);
 
         const maxSequence = await fetchMaxSequence(consultaId);
         if (maxSequence > 0) {

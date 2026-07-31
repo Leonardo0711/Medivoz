@@ -1,36 +1,49 @@
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { FileText, Radio } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface TranscriptionProps {
   transcription: string;
 }
 
 export function Transcription({ transcription }: TranscriptionProps) {
-  if (!transcription) {
-    return (
-      <Card className="h-full flex items-center justify-center bg-muted/30">
-        <div className="text-center p-6 md:p-12">
-          <FileText className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-4 text-muted-foreground/50" />
-          <h3 className="text-lg font-medium text-foreground">Sin transcripción</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            Inicia una grabación para generar la transcripción de la consulta médica.
-          </p>
-        </div>
-      </Card>
-    );
-  }
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "nearest" });
+  }, [transcription]);
 
   return (
-      <Card className="h-full flex flex-col shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b border-border">
-          <CardTitle className="text-lg md:text-xl text-foreground">Transcripción</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-auto flex-grow p-4">
-          <div className="space-y-4 whitespace-pre-line text-sm md:text-base text-card-foreground">
+    <div className="flex h-full min-h-[360px] flex-col overflow-hidden rounded-md border bg-background">
+      <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Radio className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">Texto recibido en vivo</span>
+        </div>
+        <Badge variant="outline" className="bg-background text-xs">
+          {transcription.length} caracteres
+        </Badge>
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        {transcription ? (
+          <div className="space-y-3 whitespace-pre-wrap px-5 py-4 text-sm leading-6 text-foreground">
             {transcription}
+            <div ref={endRef} />
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <div className="flex min-h-[320px] items-center justify-center p-8 text-center">
+            <div>
+              <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <h3 className="font-medium text-foreground">Esperando voz</h3>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Al iniciar la grabacion, los fragmentos confirmados apareceran aqui durante la consulta.
+              </p>
+            </div>
+          </div>
+        )}
+      </ScrollArea>
+    </div>
   );
 }

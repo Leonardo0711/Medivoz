@@ -152,31 +152,46 @@ export class TranscriptionSegmentService {
     const safeText = params.text.trim();
     if (!safeText) return null;
 
-    const sequence = params.sequence ?? (await this.getNextSequence(params.consultaId));
     const speaker = inferSpeaker(safeText);
+    const { segment, sequence } = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${params.consultaId}))`);
 
-    const [segment] = await db
-      .insert(transcriptionSegments)
-      .values({
-        consultaId: params.consultaId,
-        numeroSecuencia: sequence,
-        hablante: speaker,
-        origen: params.origin ?? "flujo_en_vivo",
-        inicioMs: params.inicioMs ?? null,
-        finMs: params.finMs ?? null,
-        texto: safeText,
-        codigoIdioma: "es",
-      })
-      .returning();
+      let sequence = params.sequence;
+      if (sequence === undefined) {
+        const rows = await tx
+          .select({
+            maxSequence: sql<number>`coalesce(max(${transcriptionSegments.numeroSecuencia}), 0)`,
+          })
+          .from(transcriptionSegments)
+          .where(eq(transcriptionSegments.consultaId, params.consultaId));
+        sequence = Number(rows[0]?.maxSequence || 0) + 1;
+      }
 
-    await db
-      .update(consultations)
-      .set({
-        transcripcion: sql`trim(concat_ws(E'\n', coalesce(${consultations.transcripcion}, ''), ${safeText}))`,
-        versionTranscripcion: sql`${consultations.versionTranscripcion} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(consultations.id, params.consultaId));
+      const [segment] = await tx
+        .insert(transcriptionSegments)
+        .values({
+          consultaId: params.consultaId,
+          numeroSecuencia: sequence,
+          hablante: speaker,
+          origen: params.origin ?? "flujo_en_vivo",
+          inicioMs: params.inicioMs ?? null,
+          finMs: params.finMs ?? null,
+          texto: safeText,
+          codigoIdioma: "es",
+        })
+        .returning();
+
+      await tx
+        .update(consultations)
+        .set({
+          transcripcion: sql`trim(concat_ws(E'\n', coalesce(${consultations.transcripcion}, ''), cast(${safeText} as text)))`,
+          versionTranscripcion: sql`${consultations.versionTranscripcion} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(consultations.id, params.consultaId));
+
+      return { segment, sequence };
+    });
 
     logger.info("[transcription-segment] realtime:stored", {
       consultaId: params.consultaId,

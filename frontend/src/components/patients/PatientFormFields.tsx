@@ -1,4 +1,4 @@
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { UseFormReturn } from "react-hook-form";
 import { PatientFormValues } from "./PatientDialogTypes";
@@ -33,7 +33,6 @@ export function PatientFormFields({ form }: PatientFormFieldsProps) {
             <FormControl>
               <Input inputMode="numeric" placeholder="12345678" {...field} />
             </FormControl>
-            <FormDescription>Opcional en fase 1</FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -57,7 +56,6 @@ export function PatientFormFields({ form }: PatientFormFieldsProps) {
                 value={field.value === null ? "" : field.value}
               />
             </FormControl>
-            <FormDescription>Opcional</FormDescription>
             <FormMessage />
           </FormItem>
         )}

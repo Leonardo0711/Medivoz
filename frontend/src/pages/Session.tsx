@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Activity, FileText, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { SessionPatientCard } from "@/components/session/SessionPatientCard";
 import { EmptyRecordPlaceholder } from "@/components/session/EmptyRecordPlaceholder";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PatientInfoCard } from "@/components/medical-record/PatientInfoCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicalRecordContainer } from "@/components/medical-record-modal/MedicalRecordContainer";
 import { Patient } from "@/components/patients/PatientDialogTypes";
 import { useMedicalRecord } from "@/hooks/medical-record/use-medical-record";
@@ -41,7 +41,6 @@ export default function Session() {
 
   const {
     formData,
-    patientData,
     transcriptionSnippet,
     fullTranscription,
     showFullTranscription,
@@ -144,24 +143,12 @@ export default function Session() {
     return () => window.clearInterval(intervalId);
   }, [currentSessionId, refreshAnamnesisPhase]);
 
-  const patientInfoProps = useMemo(() => {
-    const patient = patientData || selectedPatient;
-    if (!patient) return null;
-
-    return {
-      name: patient.nombre || "",
-      age: patient.edad ?? null,
-      occupation: patient.ocupacion ?? null,
-      location: patient.procedencia ?? null,
-    };
-  }, [patientData, selectedPatient]);
-
   return (
     <div className="flex min-h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="app-content flex-1 overflow-auto">
         <div className="container mx-auto max-w-[1600px] px-4 py-7 md:px-8 md:py-8">
-          <header className="mb-7 rounded-2xl border border-border/60 bg-card/80 p-5 shadow-sm sm:p-6">
+          <header className="mb-6 rounded-lg border border-border/60 bg-card p-5 shadow-sm sm:p-6">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -189,46 +176,24 @@ export default function Session() {
             </div>
           </header>
 
-          <div className="grid grid-cols-1 gap-6 pb-10 xl:grid-cols-12 xl:gap-8">
-            <div className="flex flex-col gap-6 xl:col-span-5 xl:gap-8">
+          <div className="grid grid-cols-1 gap-6 pb-10 xl:grid-cols-12 xl:gap-6">
+            <div className="flex flex-col gap-6 xl:col-span-4">
               <SessionPatientCard
                 selectedPatient={selectedPatient}
                 onPatientSelect={setSelectedPatient}
               />
 
-              <div className="space-y-6">
-                <div className="relative">
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-primary to-secondary opacity-20 blur" />
-                  <SessionRecorder
-                    onTranscriptionReady={handleTranscriptionReady}
-                    patientId={selectedPatient?.id || null}
-                    isPatientSelected={!!selectedPatient}
-                    onSessionCreated={handleSessionCreated}
-                  />
-                </div>
-
-                <div className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-                  <div className="flex items-center justify-between border-b bg-muted/30 p-4">
-                    <h3 className="flex items-center gap-2 font-semibold">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      Transcripcion en vivo
-                    </h3>
-                    {transcription && (
-                      <Badge variant="outline" className="bg-background text-[10px] uppercase">
-                        Procesado
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="relative flex-1">
-                    <Transcription transcription={transcription} />
-                  </div>
-                </div>
-              </div>
+              <SessionRecorder
+                onTranscriptionReady={handleTranscriptionReady}
+                patientId={selectedPatient?.id || null}
+                isPatientSelected={!!selectedPatient}
+                onSessionCreated={handleSessionCreated}
+              />
             </div>
 
-            <div className="flex min-h-[600px] flex-col xl:col-span-7">
-              <Card className="relative flex h-full flex-col overflow-hidden border-none bg-card shadow-lg">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary opacity-50" />
+            <div className="flex min-h-[600px] flex-col xl:col-span-8 xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
+              <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-card shadow-sm">
+                <Tabs defaultValue="anamnesis" className="flex h-full min-h-0 flex-col">
 
                 <CardHeader className="border-b bg-muted/10 pb-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -266,64 +231,74 @@ export default function Session() {
                         </Badge>
                       )}
                   </div>
+
+                  <TabsList className="mt-4 grid h-11 w-full grid-cols-2">
+                    <TabsTrigger value="anamnesis" className="gap-2">
+                      <Stethoscope className="h-4 w-4" />
+                      Anamnesis
+                    </TabsTrigger>
+                    <TabsTrigger value="transcripcion" className="gap-2">
+                      <FileText className="h-4 w-4" />
+                      Transcripcion en vivo
+                      <span className="text-[10px] text-muted-foreground">
+                        {transcription.length}
+                      </span>
+                    </TabsTrigger>
+                  </TabsList>
                 </CardHeader>
 
-                <CardContent className="flex-1 overflow-y-auto bg-muted/5 p-0">
-                  {patientId && currentSessionId ? (
-                    <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
-                      {patientInfoProps && (
-                        <div className="mb-6">
-                          <PatientInfoCard
-                            name={patientInfoProps.name}
-                            age={patientInfoProps.age}
-                            occupation={patientInfoProps.occupation}
-                            location={patientInfoProps.location}
+                <TabsContent value="anamnesis" className="mt-0 min-h-0 flex-1 overflow-hidden">
+                  <CardContent className="h-full overflow-y-auto bg-muted/5 p-0">
+                    {patientId && currentSessionId ? (
+                      <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-5">
+                        <div className="rounded-md border bg-background p-1 shadow-sm">
+                          <MedicalRecordContainer
+                            formData={formData}
+                            setFormData={setFormData}
+                            transcriptionSnippet={transcriptionSnippet}
+                            fullTranscription={fullTranscription}
+                            showFullTranscription={showFullTranscription}
+                            toggleTranscriptionView={toggleTranscriptionView}
+                            handleChange={handleChange}
+                            sectionMeta={sectionMeta}
+                            recordSummary={recordSummary}
+                            onRecordSummaryChange={handleRecordSummaryChange}
+                            validationWarnings={validationWarnings}
+                            editElapsedMs={editElapsedMs}
+                            isEditTiming={isEditTiming}
+                            onAcceptSuggestion={handleAcceptSuggestion}
+                            onRejectSuggestion={handleRejectSuggestion}
+                            onBlockSection={handleBlockSection}
+                            onRetrySection={handleRetrySection}
+                            onRefineSection={handleRefineSection}
+                            isSaving={isSaving}
+                            isExporting={isExporting}
+                            onClose={() => {}}
+                            onSave={async () => {
+                              await handleSave();
+                            }}
+                            onExport={async () => {
+                              await handleExportPDF();
+                            }}
+                            refreshTranscription={refreshTranscription}
+                            refreshRecordData={refreshRecordData}
+                            patientId={patientId}
+                            sessionId={currentSessionId}
+                            showCloseButton={false}
+                            showTranscriptionPanel={false}
                           />
                         </div>
-                      )}
-
-                      <div className="rounded-xl border bg-background p-1 shadow-sm">
-                        <MedicalRecordContainer
-                          formData={formData}
-                          setFormData={setFormData}
-                          transcriptionSnippet={transcriptionSnippet}
-                          fullTranscription={fullTranscription}
-                          showFullTranscription={showFullTranscription}
-                          toggleTranscriptionView={toggleTranscriptionView}
-                          handleChange={handleChange}
-                          sectionMeta={sectionMeta}
-                          recordSummary={recordSummary}
-                          onRecordSummaryChange={handleRecordSummaryChange}
-                          validationWarnings={validationWarnings}
-                          editElapsedMs={editElapsedMs}
-                          isEditTiming={isEditTiming}
-                          onAcceptSuggestion={handleAcceptSuggestion}
-                          onRejectSuggestion={handleRejectSuggestion}
-                          onBlockSection={handleBlockSection}
-                          onRetrySection={handleRetrySection}
-                          onRefineSection={handleRefineSection}
-                          isSaving={isSaving}
-                          isExporting={isExporting}
-                          onClose={() => {}}
-                          onSave={async () => {
-                            await handleSave();
-                          }}
-                          onExport={async () => {
-                            await handleExportPDF();
-                          }}
-                          refreshTranscription={refreshTranscription}
-                          refreshRecordData={refreshRecordData}
-                          patientId={patientId}
-                          sessionId={currentSessionId}
-                          showCloseButton={false}
-                          showTranscriptionPanel={false}
-                        />
                       </div>
-                    </div>
-                  ) : (
-                    <EmptyRecordPlaceholder />
-                  )}
-                </CardContent>
+                    ) : (
+                      <EmptyRecordPlaceholder />
+                    )}
+                  </CardContent>
+                </TabsContent>
+
+                <TabsContent value="transcripcion" className="mt-0 min-h-0 flex-1 overflow-hidden bg-muted/5 p-4 sm:p-5">
+                  <Transcription transcription={transcription} />
+                </TabsContent>
+                </Tabs>
               </Card>
             </div>
           </div>

@@ -50,30 +50,6 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border border-border/40 bg-muted/50 p-2.5">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Diagnostico
-                </p>
-                <p className="truncate text-xs font-medium" title={selectedPatient.diagnostico || "Sin diagnostico"}>
-                  {selectedPatient.diagnostico || (
-                    <span className="italic text-muted-foreground">Sin registro</span>
-                  )}
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-border/40 bg-muted/50 p-2.5">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Procedencia
-                </p>
-                <p className="truncate text-xs font-medium" title={selectedPatient.procedencia || "Sin procedencia"}>
-                  {selectedPatient.procedencia || (
-                    <span className="italic text-muted-foreground">Sin registro</span>
-                  )}
-                </p>
-              </div>
-            </div>
-
             <Button
               variant="ghost"
               size="sm"

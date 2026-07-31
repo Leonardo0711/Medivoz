@@ -116,7 +116,7 @@ export function PatientDialog({
           <DialogDescription>
             {isEditing 
               ? 'Actualice los datos del paciente seleccionado.'
-              : 'Registra nombre completo, DNI y edad. Solo el nombre es obligatorio en fase 1.'
+              : 'Registra nombre completo, DNI y edad.'
             }
           </DialogDescription>
         </DialogHeader>
