@@ -35,7 +35,7 @@ export function RecordingControls({
   onStopRecording,
 }: RecordingControlsProps) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3">
       <ControlButtons
         isRecording={isRecording}
         isPaused={isPaused}
@@ -59,8 +59,8 @@ export function RecordingControls({
             recordingTime={recordingTime}
             audioURL={audioURL}
           />
-          <div className="rounded-md bg-muted/30 p-2">
-            <Waveform data={audioWaveform} height={40} isActive={!isPaused} />
+          <div className="rounded-md bg-muted/30 p-1.5">
+            <Waveform data={audioWaveform} height={32} isActive={!isPaused} />
           </div>
         </div>
       )}

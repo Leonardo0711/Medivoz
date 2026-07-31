@@ -15,7 +15,7 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
 
   return (
     <Card className="overflow-hidden border-border/40 shadow-sm">
-      <CardHeader className="border-b border-border/40 bg-muted/20 pb-3">
+      <CardHeader className="border-b border-border/40 bg-muted/20 px-4 py-2.5">
         <CardTitle className="flex items-center justify-between text-base font-semibold">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-primary/10 p-1.5">
@@ -34,11 +34,11 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="pt-3">
+      <CardContent className="px-4 py-2.5">
         {selectedPatient ? (
-          <div className="animate-in slide-in-from-bottom-2 space-y-3 fade-in">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <div className="animate-in slide-in-from-bottom-2 space-y-2 fade-in">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                 {selectedPatient.nombre.substring(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -54,7 +54,7 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
               variant="ghost"
               size="sm"
               onClick={() => onPatientSelect(null)}
-              className="h-8 w-full border border-dashed border-border/60 text-xs text-muted-foreground hover:border-border hover:text-foreground"
+              className="h-7 w-full border border-dashed border-border/60 text-xs text-muted-foreground hover:border-border hover:text-foreground"
             >
               <X className="mr-1.5 h-3 w-3" />
               Cambiar paciente

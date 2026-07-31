@@ -59,6 +59,7 @@ export default function Session() {
     recordSummary,
     validationWarnings,
     handleRecordSummaryChange,
+    handleEssiNoteChange,
     handleAcceptSuggestion,
     handleRejectSuggestion,
     handleBlockSection,
@@ -189,28 +190,28 @@ export default function Session() {
   }, [currentSessionId, refreshAnamnesisPhase, refreshRecordData]);
 
   return (
-    <div className="flex min-h-screen bg-background xl:h-dvh xl:overflow-hidden">
+    <div className="flex min-h-screen bg-background lg:h-dvh lg:overflow-hidden">
       <Sidebar />
-      <div className="app-content flex min-w-0 flex-1 flex-col max-xl:overflow-y-auto xl:overflow-hidden">
-        <div className="container mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-4 py-5 md:px-6 md:py-6 xl:min-h-0">
-          <header className="mb-4 shrink-0 rounded-lg border border-border/60 bg-card p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <div className="app-content flex min-w-0 flex-1 flex-col max-lg:overflow-y-auto lg:overflow-hidden">
+        <div className="container mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-4 py-3 md:px-5 lg:min-h-0">
+          <header className="mb-3 shrink-0 rounded-md border border-border/60 bg-card px-4 py-3 shadow-sm">
+            <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
               <div>
-                <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                  <span className="rounded-xl bg-primary/10 p-2">
-                    <Stethoscope className="h-7 w-7 text-primary" />
+                <h1 className="flex items-center gap-2 text-xl font-semibold text-foreground">
+                  <span className="rounded-md bg-primary/10 p-1.5">
+                    <Stethoscope className="h-5 w-5 text-primary" />
                   </span>
                   Sesion de consulta
                 </h1>
-                <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Gestion integral de consulta medica asistida por IA.
                 </p>
               </div>
 
               {currentSessionId && (
-                <div className="animate-in slide-in-from-right-5 flex items-center gap-2 rounded-full border border-border/50 bg-muted/40 px-4 py-2">
+                <div className="animate-in slide-in-from-right-5 flex items-center gap-2 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5">
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     Sesion activa:
                     <span className="ml-1 font-mono text-foreground">
                       {currentSessionId.substring(0, 8)}
@@ -221,8 +222,8 @@ export default function Session() {
             </div>
           </header>
 
-          <div className="grid grid-cols-1 gap-4 pb-8 xl:min-h-0 xl:flex-1 xl:grid-cols-12 xl:gap-5 xl:pb-0">
-            <div className="flex flex-col gap-4 xl:col-span-4 xl:min-h-0 xl:overflow-hidden">
+          <div className="grid grid-cols-1 gap-3 pb-8 lg:min-h-0 lg:flex-1 lg:grid-cols-12 lg:pb-0">
+            <div className="flex min-h-0 flex-col gap-3 lg:col-span-4">
               <SessionPatientCard
                 selectedPatient={selectedPatient}
                 onPatientSelect={setSelectedPatient}
@@ -236,18 +237,18 @@ export default function Session() {
               />
             </div>
 
-            <div className="flex min-h-[600px] flex-col xl:col-span-8 xl:min-h-0 xl:h-full">
+            <div className="flex min-h-[600px] flex-col lg:col-span-8 lg:h-full lg:min-h-0">
               <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-card shadow-sm">
                 <Tabs defaultValue="anamnesis" className="flex h-full min-h-0 flex-col">
 
-                <CardHeader className="border-b bg-muted/10 pb-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="flex items-center gap-2 text-xl">
-                        <Activity className="h-5 w-5 text-primary" />
+                <CardHeader className="border-b bg-muted/10 px-4 py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Activity className="h-4 w-4 text-primary" />
                         Historia clinica electronica
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-0.5 text-xs">
                         Documentacion automatica estructurada basada en la transcripcion.
                       </CardDescription>
                     </div>
@@ -286,7 +287,7 @@ export default function Session() {
                       )}
                   </div>
 
-                  <TabsList className="mt-4 grid h-11 w-full grid-cols-2">
+                  <TabsList className="mt-2 grid h-9 w-full grid-cols-2">
                     <TabsTrigger value="anamnesis" className="gap-2">
                       <Stethoscope className="h-4 w-4" />
                       Anamnesis
@@ -304,7 +305,7 @@ export default function Session() {
                 <TabsContent value="anamnesis" className="mt-0 min-h-0 flex-1 overflow-hidden">
                   <CardContent className="h-full overflow-y-auto bg-muted/5 p-0">
                     {patientId && currentSessionId ? (
-                      <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-5">
+                      <div className="mx-auto w-full max-w-6xl p-3">
                         <div className="rounded-md border bg-background p-1 shadow-sm">
                           <MedicalRecordContainer
                             formData={formData}
@@ -317,6 +318,7 @@ export default function Session() {
                             sectionMeta={sectionMeta}
                             recordSummary={recordSummary}
                             onRecordSummaryChange={handleRecordSummaryChange}
+                            onEssiNoteChange={handleEssiNoteChange}
                             validationWarnings={validationWarnings}
                             editElapsedMs={editElapsedMs}
                             isEditTiming={isEditTiming}

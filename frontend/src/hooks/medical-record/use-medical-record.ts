@@ -35,6 +35,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   const [recordSummary, setRecordSummary] = useState<RecordSummaryData>({
     resumenSugeridoIa: "",
     resumenActual: "",
+    notaEssi: "",
   });
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const {
@@ -59,6 +60,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     notas_adicionales: "",
   });
   const dirtyFieldsRef = useRef<Set<keyof MedicalRecordFormData>>(new Set());
+  const dirtyRecordSummaryRef = useRef({ resumenActual: false, notaEssi: false });
 
   const loadTranscription = useCallback(async () => {
     if (!sessionId) return "";
@@ -105,7 +107,15 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
             return next;
           });
           setSectionMeta(recordData.sectionMeta);
-          setRecordSummary(recordData.recordSummary);
+          setRecordSummary((previous) => ({
+            resumenSugeridoIa: recordData.recordSummary.resumenSugeridoIa,
+            resumenActual: dirtyRecordSummaryRef.current.resumenActual
+              ? previous.resumenActual
+              : recordData.recordSummary.resumenActual,
+            notaEssi: dirtyRecordSummaryRef.current.notaEssi
+              ? previous.notaEssi
+              : recordData.recordSummary.notaEssi,
+          }));
           const nextSummary: Partial<Record<keyof MedicalRecordFormData, string>> = {};
           for (const [field, meta] of Object.entries(recordData.sectionMeta)) {
             nextSummary[field as keyof MedicalRecordFormData] =
@@ -147,6 +157,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   // Initial load of data when component mounts or ids change
   useEffect(() => {
     dirtyFieldsRef.current.clear();
+    dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
     const loadAllData = async () => {
       setIsLoading(true);
       try {
@@ -289,6 +300,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
 
   const handleRecordSummaryChange = useCallback(
     (value: string) => {
+      dirtyRecordSummaryRef.current.resumenActual = true;
       markEditActivity(null);
       setRecordSummary((prev) => ({
         ...prev,
@@ -297,6 +309,14 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     },
     [markEditActivity]
   );
+
+  const handleEssiNoteChange = useCallback((value: string) => {
+    dirtyRecordSummaryRef.current.notaEssi = true;
+    setRecordSummary((prev) => ({
+      ...prev,
+      notaEssi: value,
+    }));
+  }, []);
 
   const refreshValidation = useCallback(async () => {
     if (!sessionId) return;
@@ -432,6 +452,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
       );
       if (saved) {
         dirtyFieldsRef.current.clear();
+        dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
         logger.info("Medical record saved from hook", {
           sessionId,
           sectionCount: Object.values(formData).filter((value) => value.trim()).length,
@@ -487,6 +508,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     handleSummaryChange,
     recordSummary,
     handleRecordSummaryChange,
+    handleEssiNoteChange,
     sectionMeta,
     validationWarnings,
     handleAcceptSuggestion,

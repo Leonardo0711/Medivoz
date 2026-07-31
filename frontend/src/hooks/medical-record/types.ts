@@ -35,4 +35,5 @@ export type SectionMetaMap = Partial<Record<keyof MedicalRecordFormData, Section
 export interface RecordSummaryData {
   resumenSugeridoIa: string;
   resumenActual: string;
+  notaEssi: string;
 }

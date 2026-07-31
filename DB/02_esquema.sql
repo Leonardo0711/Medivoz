@@ -500,6 +500,7 @@ CREATE TABLE fichas_medicas (
   estado estado_ficha NOT NULL DEFAULT 'vacia',
   resumen_sugerido_ia text,
   resumen_actual text,
+  nota_essi text,
   esta_finalizada boolean NOT NULL DEFAULT false,
   finalizada_en timestamptz,
   creado_en timestamptz NOT NULL DEFAULT now(),
@@ -512,6 +513,7 @@ CREATE TABLE fichas_medicas (
 );
 
 COMMENT ON TABLE fichas_medicas IS 'Cabecera de la ficha medica derivada de una consulta. No duplica doctor ni paciente.';
+COMMENT ON COLUMN fichas_medicas.nota_essi IS 'Texto exacto pegado por el doctor desde ESSI para la comparacion PDQI-9.';
 
 CREATE TABLE secciones_ficha_medica (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -637,7 +639,7 @@ CREATE TABLE evaluaciones_pdqi9 (
   CONSTRAINT uq_evaluaciones_pdqi9_consulta_evaluador UNIQUE (consulta_id, evaluador_id)
 );
 
-COMMENT ON TABLE evaluaciones_pdqi9 IS 'Comparacion humana PDQI-9 entre el resumen de Medivoz y la nota pegada desde ESSI.';
+COMMENT ON TABLE evaluaciones_pdqi9 IS 'Comparacion humana PDQI-9 entre el resumen de Medivoz y la instantanea de la nota ESSI pegada por el doctor.';
 
 COMMENT ON TABLE eventos_consulta IS 'Bitacora operativa y tecnica de la consulta.';
 

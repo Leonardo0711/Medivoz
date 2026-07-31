@@ -23,11 +23,13 @@ export class EvaluationsService {
         fecha: consultations.fecha,
         createdAt: consultations.createdAt,
         notaMedivozAsistida: medicalRecords.resumenActual,
+        notaEssi: medicalRecords.notaEssi,
       })
       .from(consultations)
       .innerJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
       .where(
-        sql`nullif(${medicalRecords.resumenActual}, '') is not null`
+        sql`nullif(btrim(${medicalRecords.resumenActual}), '') is not null
+          and nullif(btrim(${medicalRecords.notaEssi}), '') is not null`
       )
       .orderBy(desc(consultations.createdAt));
 
@@ -36,6 +38,7 @@ export class EvaluationsService {
       codigoConsulta: row.codigoConsulta,
       fecha: row.fecha || row.createdAt,
       notaMedivozCaracteres: (row.notaMedivozAsistida || "").length,
+      notaEssiCaracteres: (row.notaEssi || "").length,
     }));
   }
 
@@ -48,6 +51,7 @@ export class EvaluationsService {
         fecha: consultations.fecha,
         createdAt: consultations.createdAt,
         resumenActual: medicalRecords.resumenActual,
+        notaEssi: medicalRecords.notaEssi,
       })
       .from(consultations)
       .innerJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
@@ -56,7 +60,8 @@ export class EvaluationsService {
 
     if (!row) return null;
     const notaMedivozAsistida = (row.resumenActual || "").trim();
-    if (!notaMedivozAsistida) return null;
+    const notaEssi = (row.notaEssi || "").trim();
+    if (!notaMedivozAsistida || !notaEssi) return null;
 
     const [editMetrics] = await db
       .select({ duracionMedivozMs: sql<number>`coalesce(sum(${medicalRecordEditSessions.duracionActivaMs}), 0)` })
@@ -80,6 +85,7 @@ export class EvaluationsService {
       codigoConsulta: row.codigoConsulta,
       fecha: row.fecha || row.createdAt,
       notaMedivozAsistida,
+      notaEssi,
       duracionMedivozMs: Number(editMetrics?.duracionMedivozMs || 0),
       evaluacion: evaluation
         ? {
@@ -111,7 +117,7 @@ export class EvaluationsService {
     const diferenciaTiempoMs = duracionMedivozMs - input.duracionEssiMs;
     const payload = {
       notaMedivozAsistida: context.notaMedivozAsistida,
-      notaEssi: input.notaEssi,
+      notaEssi: context.notaEssi,
       puntajesMedivoz: input.puntajesMedivoz as Pdqi9Scores,
       puntajesEssi: input.puntajesEssi as Pdqi9Scores,
       promedioMedivoz: String(promedioMedivoz),
@@ -138,7 +144,7 @@ export class EvaluationsService {
       evaluationId: evaluation.id,
       consultaId,
       evaluadorId,
-      essiNoteChars: input.notaEssi.length,
+      essiNoteChars: context.notaEssi.length,
       promedioMedivoz,
       promedioEssi,
       diferenciaPromedio,

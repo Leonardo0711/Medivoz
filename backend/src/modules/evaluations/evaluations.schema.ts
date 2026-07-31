@@ -20,7 +20,6 @@ const pdqi9ScoresSchema = z.object(
 );
 
 export const savePdqi9EvaluationSchema = z.object({
-  notaEssi: z.string().trim().min(20).max(30_000),
   puntajesMedivoz: pdqi9ScoresSchema,
   puntajesEssi: pdqi9ScoresSchema,
   duracionEssiMs: z.number().int().min(0).max(12 * 60 * 60 * 1_000),

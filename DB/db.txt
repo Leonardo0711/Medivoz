@@ -634,6 +634,7 @@ Table fichas_medicas {
   estado estado_ficha [not null, default: 'vacia']
   resumen_sugerido_ia text [note: "Resumen narrativo unico generado por IA para copiar a la plataforma oficial"]
   resumen_actual text [note: "Resumen narrativo unico aceptado o editado por el doctor"]
+  nota_essi text [note: "Texto exacto pegado por el doctor desde ESSI para la comparacion PDQI-9"]
   esta_finalizada boolean [not null, default: false]
   finalizada_en timestamptz
 
@@ -814,7 +815,7 @@ Table evaluaciones_pdqi9 {
   consulta_id uuid [not null, ref: > consultas.id]
   evaluador_id uuid [ref: > usuarios.id]
   nota_medivoz_asistida text [not null, note: "Instantanea de la nota Medivoz revisada o editada por el medico"]
-  nota_essi text [not null, note: "Nota pegada por el evaluador desde la plataforma ESSI"]
+  nota_essi text [not null, note: "Instantanea de la nota ESSI pegada por el doctor en la ficha"]
   puntajes_medivoz jsonb [not null, note: "Nueve puntajes PDQI-9 de la documentacion medico asistido, de 1 a 5"]
   puntajes_essi jsonb [not null, note: "Nueve puntajes PDQI-9, de 1 a 5"]
   promedio_medivoz decimal(4,2) [not null]

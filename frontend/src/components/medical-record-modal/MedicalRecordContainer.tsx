@@ -27,6 +27,7 @@ interface MedicalRecordContainerProps {
   sectionMeta?: SectionMetaMap;
   recordSummary?: RecordSummaryData;
   onRecordSummaryChange?: (value: string) => void;
+  onEssiNoteChange?: (value: string) => void;
   validationWarnings?: string[];
   editElapsedMs?: number;
   isEditTiming?: boolean;
@@ -60,6 +61,7 @@ export const MedicalRecordContainer = memo(
     sectionMeta,
     recordSummary,
     onRecordSummaryChange,
+    onEssiNoteChange,
     validationWarnings,
     editElapsedMs,
     isEditTiming,
@@ -160,6 +162,7 @@ export const MedicalRecordContainer = memo(
             sectionMeta={sectionMeta}
             recordSummary={recordSummary}
             onRecordSummaryChange={onRecordSummaryChange}
+            onEssiNoteChange={onEssiNoteChange}
             validationWarnings={validationWarnings}
             editElapsedMs={editElapsedMs}
             isEditTiming={isEditTiming}

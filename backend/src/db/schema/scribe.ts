@@ -33,6 +33,7 @@ export const medicalRecords = pgTable("fichas_medicas", {
   estado: recordStatusEnum("estado").default("vacia").notNull(),
   resumenSugeridoIa: text("resumen_sugerido_ia"),
   resumenActual: text("resumen_actual"),
+  notaEssi: text("nota_essi"),
   estaFinalizada: boolean("esta_finalizada").default(false).notNull(),
   finalizadaEn: timestamp("finalizada_en", { withTimezone: true }),
   createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),

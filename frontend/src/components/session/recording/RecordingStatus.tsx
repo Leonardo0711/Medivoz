@@ -29,7 +29,7 @@ export function RecordingStatus({
 
   if (isRecording) {
     return (
-      <div className="flex items-center gap-2 mb-2 py-2 px-3 rounded-md bg-opacity-10">
+      <div className="mb-1 flex items-center gap-2 rounded-md bg-opacity-10 px-3 py-1">
         {isPaused ? (
           <div className="flex items-center gap-2 text-amber-500 bg-amber-100/50 w-full justify-center py-1 rounded-md">
             <Pause className="h-5 w-5" />

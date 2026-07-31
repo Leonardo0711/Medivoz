@@ -52,6 +52,7 @@ interface MedicalRecordFormProps {
   onRefineSection?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
   recordSummary?: RecordSummaryData;
   onRecordSummaryChange?: (value: string) => void;
+  onEssiNoteChange?: (value: string) => void;
   validationWarnings?: string[];
   editElapsedMs?: number;
   isEditTiming?: boolean;
@@ -161,8 +162,9 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
   onBlockSection,
   onRetrySection,
   onRefineSection,
-  recordSummary = { resumenSugeridoIa: "", resumenActual: "" },
+  recordSummary = { resumenSugeridoIa: "", resumenActual: "", notaEssi: "" },
   onRecordSummaryChange,
+  onEssiNoteChange,
   validationWarnings = [],
   editElapsedMs = 0,
   isEditTiming = false,
@@ -415,38 +417,60 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
         })}
 
         <TabsContent value="resumen" className="mt-0">
-          <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <FileText className="h-4 w-4 text-primary" />
-                  Resumen narrativo final
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Un solo parrafo para copiar al sistema institucional del doctor.
-                </p>
+          <div className="grid gap-3 xl:grid-cols-2">
+            <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Resumen narrativo final
+                  </h4>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Un solo parrafo para copiar al sistema institucional del doctor.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {summaryWasGenerated && (
+                    <Badge variant="outline" className="bg-background text-[11px]">
+                      IA
+                    </Badge>
+                  )}
+                  {summaryWasEdited && (
+                    <Badge variant="secondary" className="text-[11px]">
+                      Editado
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {summaryWasGenerated && (
-                  <Badge variant="outline" className="bg-background text-[11px]">
-                    IA
-                  </Badge>
-                )}
-                {summaryWasEdited && (
-                  <Badge variant="secondary" className="text-[11px]">
-                    Editado
-                  </Badge>
-                )}
-              </div>
+
+              <Textarea
+                value={summaryValue}
+                onChange={(event) => onRecordSummaryChange?.(event.target.value)}
+                rows={7}
+                placeholder="Ej: Paciente refiere una semana de enfermedad con sintomas principales descritos durante la consulta..."
+                className="resize-none bg-background"
+              />
             </div>
 
-            <Textarea
-              value={summaryValue}
-              onChange={(event) => onRecordSummaryChange?.(event.target.value)}
-              rows={7}
-              placeholder="Ej: Paciente refiere una semana de enfermedad con sintomas principales descritos durante la consulta..."
-              className="resize-none bg-background"
-            />
+            <div className="space-y-3 rounded-md border bg-card p-4">
+              <div>
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  Texto registrado en ESSI
+                </h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pega exactamente el unico parrafo que escribiste en ESSI para la comparacion PDQI-9.
+                </p>
+              </div>
+              <Textarea
+                value={recordSummary.notaEssi || ""}
+                onChange={(event) => onEssiNoteChange?.(event.target.value)}
+                rows={7}
+                maxLength={30000}
+                placeholder="Pega aqui el texto escrito en ESSI..."
+                className="resize-none bg-background"
+              />
+            </div>
           </div>
         </TabsContent>
       </Tabs>

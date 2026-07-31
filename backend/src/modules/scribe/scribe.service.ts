@@ -40,14 +40,16 @@ const normalizedEditDistance = (a?: string | null, b?: string | null) => {
   return (prev[right.length] / maxLen).toFixed(4);
 };
 
-const sectionOrder = [
+const fallbackSummaryOrder = [
   "motivo_consulta",
   "tiempo_enfermedad",
   "forma_inicio",
   "curso_enfermedad",
-  "historia_cronologica",
-  "antecedentes",
   "sintomas_principales",
+];
+
+const supportingSummaryOrder = [
+  "antecedentes",
   "estado_funcional_basal",
   "estudios_previos",
   "notas_adicionales",
@@ -110,6 +112,7 @@ export class ScribeService {
     options: {
       resumenSugeridoIa?: string | null;
       resumenActual?: string | null;
+      notaEssi?: string | null;
       origen?: "ia" | "doctor" | "manual" | "sistema";
     },
     executor: DbExecutor = db
@@ -125,6 +128,9 @@ export class ScribeService {
     if (options.resumenActual !== undefined) {
       values.resumenActual = options.resumenActual;
     }
+    if (options.notaEssi !== undefined) {
+      values.notaEssi = options.notaEssi;
+    }
 
     const [updated] = await executor
       .update(medicalRecords)
@@ -137,6 +143,7 @@ export class ScribeService {
       origin: options.origen || "sistema",
       hasSuggestedSummary: Boolean(updated?.resumenSugeridoIa?.trim()),
       hasCurrentSummary: Boolean(updated?.resumenActual?.trim()),
+      hasEssiNote: Boolean(updated?.notaEssi?.trim()),
     });
 
     return updated;
@@ -174,6 +181,7 @@ export class ScribeService {
         estado: record.estado,
         resumenSugeridoIa: record.resumenSugeridoIa,
         resumenActual: record.resumenActual,
+        notaEssi: record.notaEssi,
         estaFinalizada: record.estaFinalizada,
       },
       secciones: sections.map((section) => ({
@@ -231,6 +239,7 @@ export class ScribeService {
     }>;
     resumenSugeridoIa?: string | null;
     resumenActual?: string | null;
+    notaEssi?: string | null;
     sesionEdicionId?: string | null;
     duracionEdicionTotalMs?: number | null;
   }) {
@@ -264,12 +273,17 @@ export class ScribeService {
         );
       }
 
-      if (input.resumenSugeridoIa !== undefined || input.resumenActual !== undefined) {
+      if (
+        input.resumenSugeridoIa !== undefined ||
+        input.resumenActual !== undefined ||
+        input.notaEssi !== undefined
+      ) {
         await this.updateRecordSummary(
           record.id,
           {
             resumenSugeridoIa: input.resumenSugeridoIa ?? undefined,
             resumenActual: input.resumenActual ?? undefined,
+            notaEssi: input.notaEssi,
             origen: "doctor",
           },
           tx
@@ -327,11 +341,15 @@ export class ScribeService {
       .where(eq(medicalRecordSections.fichaId, fichaId));
 
     const byName = new Map(sections.map((section) => [String(section.nombre), section]));
+    const sectionSummary = (name: string) => {
+      const section = byName.get(name);
+      return section?.resumenSugeridoIa || section?.resumenActual || section?.textoSugeridoIa;
+    };
+    const chronologicalHistory = sectionSummary("historia_cronologica");
     const summary = compactSummaryParts(
-      sectionOrder.map((name) => {
-        const section = byName.get(name);
-        return section?.resumenSugeridoIa || section?.resumenActual || section?.textoSugeridoIa;
-      })
+      chronologicalHistory
+        ? [chronologicalHistory, ...supportingSummaryOrder.map(sectionSummary)]
+        : [...fallbackSummaryOrder, ...supportingSummaryOrder].map(sectionSummary)
     );
 
     if (!summary) return null;

@@ -95,6 +95,7 @@ export const fetchExistingRecord = async (sessionId: string, _patientId: string)
     const recordSummary = {
       resumenSugeridoIa: data?.resumenSugeridoIa || composedSummary || "",
       resumenActual: data?.resumenActual || data?.resumenSugeridoIa || composedSummary || "",
+      notaEssi: data?.notaEssi || "",
     };
     return { formData, sectionMeta, recordSummary };
   } catch (error: unknown) {

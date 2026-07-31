@@ -27,7 +27,7 @@ export function ControlButtons({
   onStopRecording,
 }: ControlButtonsProps) {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3">
+    <div className="flex flex-wrap items-center justify-center gap-2">
       {!isPatientSelected && (
         <Button variant="outline" size="lg" disabled>
           Selecciona un paciente primero
@@ -51,14 +51,14 @@ export function ControlButtons({
         <>
           <Button
             variant="outline"
-            size="lg"
+            size="sm"
             onClick={onPauseRecording}
             className="border-amber-500 text-amber-500 hover:bg-amber-50"
           >
             <Pause className="mr-2 h-4 w-4" />
             Pausar grabacion
           </Button>
-          <Button variant="destructive" size="lg" onClick={onStopRecording}>
+          <Button variant="destructive" size="sm" onClick={onStopRecording}>
             <Square className="mr-2 h-4 w-4" />
             Detener grabacion
           </Button>

@@ -31,12 +31,19 @@ type CompletedScores = Record<Dimension, number>;
 
 const emptyScores = (): Scores => Object.fromEntries(dimensions.map(([key]) => [key, null])) as Scores;
 
-type Candidate = { consultaId: string; codigoConsulta: string; fecha: string; notaMedivozCaracteres: number };
+type Candidate = {
+  consultaId: string;
+  codigoConsulta: string;
+  fecha: string;
+  notaMedivozCaracteres: number;
+  notaEssiCaracteres: number;
+};
 type EvaluationContext = {
   consultaId: string;
   codigoConsulta: string;
   fecha: string;
   notaMedivozAsistida: string;
+  notaEssi: string;
   duracionMedivozMs: number;
   evaluacion: null | {
     notaEssi: string;
@@ -92,7 +99,7 @@ export default function Evaluations() {
 
   useEffect(() => {
     const saved = contextQuery.data?.evaluacion;
-    setEssiNote(saved?.notaEssi || "");
+    setEssiNote(saved?.notaEssi || contextQuery.data?.notaEssi || "");
     setScoresMedivoz(saved?.puntajesMedivoz || emptyScores());
     setScoresEssi(saved?.puntajesEssi || emptyScores());
     setEssiMinutes(saved?.duracionEssiMs ? String(Math.round(saved.duracionEssiMs / 60_000)) : "");
@@ -105,7 +112,6 @@ export default function Evaluations() {
         throw new Error("Complete los nueve criterios para ambas notas");
       }
       return api.put(`/evaluations/consultations/${selectedId}`, {
-        notaEssi: essiNote,
         puntajesMedivoz: scoresMedivoz,
         puntajesEssi: scoresEssi,
         duracionEssiMs: Math.round(Number(essiMinutes) * 60_000),
@@ -190,7 +196,7 @@ export default function Evaluations() {
                   </section>
                   <section className="border p-4">
                     <Label htmlFor="essi-note" className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Nota registrada en ESSI</Label>
-                    <Textarea id="essi-note" value={essiNote} onChange={(event) => setEssiNote(event.target.value)} rows={11} placeholder="Pegue aqui la nota registrada por el medico" className="resize-none" />
+                    <Textarea id="essi-note" value={essiNote} readOnly rows={11} className="resize-none bg-muted/30" />
                   </section>
                 </div>
 

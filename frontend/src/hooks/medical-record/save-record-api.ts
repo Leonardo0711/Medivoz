@@ -23,7 +23,7 @@ export const saveMedicalRecord = async (
       }
     >
   > = {},
-  recordSummary: RecordSummaryData = { resumenSugeridoIa: "", resumenActual: "" },
+  recordSummary: RecordSummaryData = { resumenSugeridoIa: "", resumenActual: "", notaEssi: "" },
   editSessionId: string | null = null,
   totalEditDurationMs = 0
 ) => {
@@ -120,6 +120,7 @@ export const saveMedicalRecord = async (
       pacienteId: patientId,
       resumenSugeridoIa: recordSummary.resumenSugeridoIa || null,
       resumenActual: recordSummary.resumenActual || recordSummary.resumenSugeridoIa || null,
+      notaEssi: recordSummary.notaEssi || null,
       sesionEdicionId: editSessionId,
       duracionEdicionTotalMs: totalEditDurationMs,
       secciones,

@@ -35,6 +35,7 @@ const saveRecordSchema = z.object({
   pacienteId: z.string().uuid().optional(),
   resumenSugeridoIa: z.string().nullable().optional(),
   resumenActual: z.string().nullable().optional(),
+  notaEssi: z.string().max(30000).nullable().optional(),
   sesionEdicionId: z.string().uuid().nullable().optional(),
   duracionEdicionTotalMs: z.number().int().nonnegative().nullable().optional(),
   secciones: z.array(
@@ -258,6 +259,7 @@ export async function scribeRoutes(app: FastifyInstance) {
         secciones,
         resumenSugeridoIa,
         resumenActual,
+        notaEssi,
         sesionEdicionId,
         duracionEdicionTotalMs,
       } = request.body as any;
@@ -270,6 +272,7 @@ export async function scribeRoutes(app: FastifyInstance) {
           sectionCount: secciones.length,
           sections: secciones.map((section: any) => section.nombre),
           hasRecordSummary: Boolean(resumenActual?.trim?.() || resumenSugeridoIa?.trim?.()),
+          hasEssiNote: Boolean(notaEssi?.trim?.()),
         });
         const { record, results } = await scribeService.saveRecord({
           consultaId,
@@ -278,6 +281,7 @@ export async function scribeRoutes(app: FastifyInstance) {
           secciones,
           resumenSugeridoIa,
           resumenActual,
+          notaEssi,
           sesionEdicionId,
           duracionEdicionTotalMs,
         });

@@ -204,8 +204,8 @@ export const SessionRecorder = memo(
       >
         {isActive && <div className="absolute inset-0 animate-pulse bg-primary/5" />}
 
-        <div className="relative z-10 flex flex-col items-center gap-3 p-4">
-          <div className="flex w-full items-center justify-between border-b pb-3">
+        <div className="relative z-10 flex flex-col items-center gap-2 p-3">
+          <div className="flex w-full items-center justify-between border-b pb-2">
             <div className="flex items-center gap-2.5">
               <div
                 className={cn(
@@ -216,7 +216,7 @@ export const SessionRecorder = memo(
                 {isActive ? <Radio className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
               </div>
               <div>
-                <h3 className="text-lg font-semibold leading-none">Grabadora</h3>
+                <h3 className="text-base font-semibold leading-none">Grabadora</h3>
                 <p className="mt-1 text-xs text-muted-foreground">Captura de audio de consulta</p>
               </div>
             </div>
@@ -255,7 +255,7 @@ export const SessionRecorder = memo(
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-3 grid w-full grid-cols-2 rounded-lg bg-muted/50 p-1.5">
+            <TabsList className="mb-2 grid h-9 w-full grid-cols-2 rounded-md bg-muted/50 p-1">
               <TabsTrigger
                 value="record"
                 disabled={isProcessing || isAudioRecording}
@@ -311,7 +311,7 @@ export const SessionRecorder = memo(
           </Tabs>
 
           {isActive && (
-            <div className="flex animate-pulse items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Activity className="h-3 w-3 text-primary" />
               <span>Grabando audio de alta calidad...</span>
             </div>
