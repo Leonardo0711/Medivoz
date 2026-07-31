@@ -59,10 +59,11 @@ type AnamnesisPhaseDetection = {
 };
 
 const keywordMap: Array<{ section: SectionName; words: string[] }> = [
-  { section: "motivo_consulta", words: ["motivo", "consulta", "queja", "principal", "dolor"] },
+  { section: "motivo_consulta", words: ["motivo", "consulta", "queja", "principal", "dolor", "molestia", "sintoma"] },
   { section: "tiempo_enfermedad", words: ["hace", "dias", "semanas", "meses", "desde"] },
   { section: "curso_enfermedad", words: ["empeora", "mejora", "progres", "evolucion", "curso"] },
-  { section: "historia_cronologica", words: ["inicio", "luego", "despues", "primero", "cronolog"] },
+  { section: "forma_inicio", words: ["inicio", "comenzo", "repentino", "subito", "insidioso"] },
+  { section: "historia_cronologica", words: ["inicio", "comenzo", "luego", "despues", "primero", "cronolog"] },
   { section: "antecedentes", words: ["antecedente", "cirugia", "medicacion", "alergia", "familia"] },
   { section: "sintomas_principales", words: ["sintoma", "fiebre", "tos", "nausea", "cefalea"] },
   { section: "estado_funcional_basal", words: ["camina", "independ", "funcional", "actividades"] },
@@ -113,7 +114,18 @@ const inferSections = (text: string): SectionName[] => {
     return ["motivo_consulta", "historia_cronologica", "sintomas_principales"];
   }
 
-  const inferred = Array.from(found).slice(0, 5);
+  if (
+    found.has("tiempo_enfermedad") ||
+    found.has("forma_inicio") ||
+    found.has("curso_enfermedad") ||
+    found.has("sintomas_principales")
+  ) {
+    found.add("motivo_consulta");
+    found.add("historia_cronologica");
+    found.add("sintomas_principales");
+  }
+
+  const inferred = Array.from(found).slice(0, 6);
   logger.info("[clinical-worker] infer-sections:matched", {
     transcriptChars: text.length,
     sections: inferred,
@@ -347,9 +359,14 @@ Reglas obligatorias:
 - Si no hay evidencia textual clara para una clave, usa texto "" y confianza 0.
 - Cada texto no vacio debe tener al menos un numero en evidencia_segmentos.
 - Si texto esta vacio, resumen tambien debe estar vacio.
-- El resumen debe ser narrativo, corto y fiel al texto; no agregues datos nuevos.
-- Usa solo datos presentes en los segmentos nuevos.
-- No repitas informacion previa salvo que el segmento nuevo la confirme o la corrija.
+- Convierte el lenguaje oral en redaccion clinica profesional, clara, breve y en tercera persona.
+- Nunca copies literalmente primera persona como "tengo", "me duele" o "ya voy dos semanas". Redacta, por ejemplo: "Paciente refiere tos seca de dos semanas de evolucion".
+- Elimina muletillas, repeticiones y frases conversacionales sin perder sintomas, tiempos, intensidad, dosis, fechas ni negaciones.
+- No conviertas lo referido en un diagnostico. Usa expresiones como "Paciente refiere", "segun familiar" o "se indica" cuando corresponda.
+- motivo_consulta debe expresar la razon clinica principal en una frase breve; tiempo_enfermedad debe contener solo la duracion normalizada; historia_cronologica debe integrar la evolucion en orden temporal.
+- Integra el contexto actual con los segmentos nuevos y devuelve el contenido clinico COMPLETO y actualizado de cada seccion, no solo la ultima frase escuchada.
+- Conserva informacion previa sustentada. Solo corrigela o reemplazala cuando los nuevos segmentos la aclaren o contradigan.
+- El resumen debe ser narrativo, corto y fiel al texto, con el estilo que el medico podria copiar a su plataforma institucional.
 - Manten negaciones clinicas tal como fueron dichas.
 - Para _meta_anamnesis marca "probable_cierre" o "cerrada" solo si el dialogo cambia claramente hacia examen fisico, revision de resultados, diagnostico, tratamiento, indicaciones, recetas, plan o despedida.
 - Si aun hay preguntas sobre sintomas, antecedentes, tiempo de enfermedad o historia actual, usa "en_anamnesis".
@@ -508,6 +525,7 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
       .select({
         nombre: medicalRecordSections.nombre,
         textoActual: medicalRecordSections.textoActual,
+        textoSugeridoIa: medicalRecordSections.textoSugeridoIa,
       })
       .from(medicalRecordSections)
       .where(
@@ -519,7 +537,10 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
 
     const existingMap = new Map<SectionName, string>();
     for (const row of existingRows) {
-      existingMap.set(row.nombre as SectionName, row.textoActual || "");
+      existingMap.set(
+        row.nombre as SectionName,
+        row.textoActual || row.textoSugeridoIa || ""
+      );
     }
 
     const extractorAgent = await resolveExtractorAgent(consultation.doctorId);

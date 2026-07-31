@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { exportMedicalRecordPDF } from "./use-medical-record-pdf";
 import {
   fetchTranscriptionData,
@@ -58,6 +58,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     estudios_previos: "",
     notas_adicionales: "",
   });
+  const dirtyFieldsRef = useRef<Set<keyof MedicalRecordFormData>>(new Set());
 
   const loadTranscription = useCallback(async () => {
     if (!sessionId) return "";
@@ -96,7 +97,13 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         const recordData = await fetchExistingRecord(sessionId, patientId);
         if (recordData) {
           logger.log("Record data loaded");
-          setFormData(recordData.formData);
+          setFormData((previous) => {
+            const next = { ...recordData.formData };
+            for (const field of dirtyFieldsRef.current) {
+              next[field] = previous[field];
+            }
+            return next;
+          });
           setSectionMeta(recordData.sectionMeta);
           setRecordSummary(recordData.recordSummary);
           const nextSummary: Partial<Record<keyof MedicalRecordFormData, string>> = {};
@@ -139,6 +146,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
 
   // Initial load of data when component mounts or ids change
   useEffect(() => {
+    dirtyFieldsRef.current.clear();
     const loadAllData = async () => {
       setIsLoading(true);
       try {
@@ -175,6 +183,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
       const field = name as keyof MedicalRecordFormData;
+      dirtyFieldsRef.current.add(field);
       markEditActivity(field);
       setFormData((prev) => ({ ...prev, [name]: value }));
     },
@@ -213,6 +222,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         duracionEdicionMs: timer.fieldDurationsMs[field] || 0,
         sesionEdicionId: timer.editSessionId || undefined,
       });
+      dirtyFieldsRef.current.delete(field);
       clearFieldDuration(field);
       logger.info("Medical record section accepted", {
         sessionId,
@@ -421,6 +431,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         editTimer.totalDurationMs
       );
       if (saved) {
+        dirtyFieldsRef.current.clear();
         logger.info("Medical record saved from hook", {
           sessionId,
           sectionCount: Object.values(formData).filter((value) => value.trim()).length,

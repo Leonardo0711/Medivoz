@@ -37,7 +37,7 @@ const defaultAgentDefinitions: Array<{
     tipo: "extractor",
     prioridad: 2,
     prompt:
-      "Extrae solo informacion presente en la transcripcion. No diagnostiques, no completes datos ausentes y marca vacio cuando no haya evidencia. Redacta tambien un resumen narrativo breve por cada seccion.",
+      "Extrae solo informacion presente en la transcripcion y conviertela en una nota clinica profesional, breve y en tercera persona. No copies literalmente el habla del paciente, no diagnostiques, no completes datos ausentes y marca vacio cuando no haya evidencia. Integra cada nuevo fragmento con la sugerencia previa y redacta tambien un resumen narrativo breve por seccion.",
     configuracion: {
       modelo: "gpt-4o-mini",
       temperatura: 0,

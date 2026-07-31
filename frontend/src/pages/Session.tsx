@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Activity, FileText, Stethoscope } from "lucide-react";
+import { Activity, FileText, Sparkles, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SessionRecorder } from "@/components/SessionRecorder";
@@ -36,6 +36,10 @@ export default function Session() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [anamnesisPhase, setAnamnesisPhase] = useState<AnamnesisPhase | null>(null);
+  const [isStructuringLive, setIsStructuringLive] = useState(false);
+  const lastTranscriptionActivityRef = useRef(0);
+  const recordRefreshInFlightRef = useRef(false);
+  const structuringTimeoutRef = useRef<number | null>(null);
   const [searchParams] = useSearchParams();
   const patientId = selectedPatient?.id || null;
 
@@ -103,6 +107,25 @@ export default function Session() {
 
   const handleTranscriptionReady = useCallback((text: string) => {
     setTranscription(text);
+    if (!text.trim()) return;
+
+    lastTranscriptionActivityRef.current = Date.now();
+    setIsStructuringLive(true);
+    if (structuringTimeoutRef.current) {
+      window.clearTimeout(structuringTimeoutRef.current);
+    }
+    structuringTimeoutRef.current = window.setTimeout(() => {
+      setIsStructuringLive(false);
+      structuringTimeoutRef.current = null;
+    }, 15_000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (structuringTimeoutRef.current) {
+        window.clearTimeout(structuringTimeoutRef.current);
+      }
+    };
   }, []);
 
   const refreshAnamnesisPhase = useCallback(async () => {
@@ -142,6 +165,28 @@ export default function Session() {
     }, 7000);
     return () => window.clearInterval(intervalId);
   }, [currentSessionId, refreshAnamnesisPhase]);
+
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const refreshLiveRecord = async () => {
+      const activityAgeMs = Date.now() - lastTranscriptionActivityRef.current;
+      if (activityAgeMs > 20_000 || recordRefreshInFlightRef.current) return;
+
+      recordRefreshInFlightRef.current = true;
+      try {
+        await refreshRecordData();
+        await refreshAnamnesisPhase();
+      } finally {
+        recordRefreshInFlightRef.current = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshLiveRecord();
+    }, 2_500);
+    return () => window.clearInterval(intervalId);
+  }, [currentSessionId, refreshAnamnesisPhase, refreshRecordData]);
 
   return (
     <div className="flex min-h-screen overflow-hidden bg-background">
@@ -213,6 +258,15 @@ export default function Session() {
                       >
                         <Activity className="mr-1 h-3 w-3" />
                         Ficha existente
+                      </Badge>
+                    )}
+                    {isStructuringLive && (
+                      <Badge
+                        variant="outline"
+                        className="w-fit border-sky-200 bg-sky-50 text-sky-800"
+                      >
+                        <Sparkles className="mr-1 h-3 w-3 animate-pulse" />
+                        IA estructurando en vivo
                       </Badge>
                     )}
                     {anamnesisPhase?.estadoAnamnesis &&

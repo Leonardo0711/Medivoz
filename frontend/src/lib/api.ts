@@ -17,6 +17,14 @@ export const getApiErrorMessage = (error: unknown, fallback: string): string => 
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
+type RefreshedAuthSession = {
+  accessToken: string;
+  refreshToken?: string;
+  user?: unknown;
+};
+
+let refreshSessionPromise: Promise<RefreshedAuthSession> | null = null;
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -24,20 +32,28 @@ const api = axios.create({
   },
 });
 
-export const refreshAuthSession = async (refreshToken: string) => {
-  const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
-  const { accessToken, refreshToken: rotatedRefreshToken, user } = response.data;
+export const refreshAuthSession = (refreshToken: string): Promise<RefreshedAuthSession> => {
+  if (refreshSessionPromise) return refreshSessionPromise;
 
-  localStorage.setItem('access_token', accessToken);
-  if (rotatedRefreshToken) {
-    localStorage.setItem('refresh_token', rotatedRefreshToken);
-  }
-  if (user) {
-    localStorage.setItem('user', JSON.stringify(user));
-  }
+  refreshSessionPromise = (async () => {
+    const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+    const { accessToken, refreshToken: rotatedRefreshToken, user } = response.data;
 
-  api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-  return { accessToken, refreshToken: rotatedRefreshToken, user };
+    localStorage.setItem('access_token', accessToken);
+    if (rotatedRefreshToken) {
+      localStorage.setItem('refresh_token', rotatedRefreshToken);
+    }
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    return { accessToken, refreshToken: rotatedRefreshToken, user };
+  })().finally(() => {
+    refreshSessionPromise = null;
+  });
+
+  return refreshSessionPromise;
 };
 
 // Interceptor to add the access token to requests

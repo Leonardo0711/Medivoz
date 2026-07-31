@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 import api, { getApiErrorStatus } from "@/lib/api";
 import { MedicalRecordFormData, SectionMetaMap } from "./types";
 import { logger } from "@/utils/logger";
@@ -97,7 +96,6 @@ export const fetchExistingRecord = async (sessionId: string, _patientId: string)
       resumenSugeridoIa: data?.resumenSugeridoIa || composedSummary || "",
       resumenActual: data?.resumenActual || data?.resumenSugeridoIa || composedSummary || "",
     };
-    toast.info("Ficha medica existente cargada");
     return { formData, sectionMeta, recordSummary };
   } catch (error: unknown) {
     if (getApiErrorStatus(error) === 404) return null;

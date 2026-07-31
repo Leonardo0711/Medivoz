@@ -26,6 +26,7 @@ type RuntimeSession = {
   bufferedCharsSinceQueue: number;
   lastQueuedSequence: number;
   lastQueueAt: number;
+  hasQueuedIncrementalExtraction: boolean;
   audioChunksReceived: number;
 };
 
@@ -53,17 +54,17 @@ const IDLE_SESSION_TTL_MS = Math.max(
   30_000,
   Number.parseInt(process.env.REALTIME_IDLE_SESSION_TTL_MS ?? "300000", 10) || 300000
 );
-const EXTRACTION_MIN_CHARS = Math.max(
-  300,
-  Number.parseInt(process.env.REALTIME_EXTRACTION_MIN_CHARS ?? "900", 10) || 900
+const EXTRACTION_INITIAL_MIN_CHARS = Math.max(
+  30,
+  Number.parseInt(process.env.REALTIME_EXTRACTION_INITIAL_MIN_CHARS ?? "40", 10) || 40
 );
-const EXTRACTION_MIN_SEGMENTS = Math.max(
-  2,
-  Number.parseInt(process.env.REALTIME_EXTRACTION_MIN_SEGMENTS ?? "4", 10) || 4
+const EXTRACTION_MIN_CHARS = Math.max(
+  60,
+  Number.parseInt(process.env.REALTIME_EXTRACTION_MIN_CHARS ?? "100", 10) || 100
 );
 const EXTRACTION_MIN_INTERVAL_MS = Math.max(
   5_000,
-  Number.parseInt(process.env.REALTIME_EXTRACTION_MIN_INTERVAL_MS ?? "15000", 10) || 15000
+  Number.parseInt(process.env.REALTIME_EXTRACTION_MIN_INTERVAL_MS ?? "8000", 10) || 8000
 );
 
 const extractToken = (socket: Socket): string | null => {
@@ -247,6 +248,7 @@ export function setupSockets(app: FastifyInstance) {
         bufferedCharsSinceQueue: 0,
         lastQueuedSequence: Math.max(0, nextSequence - 1),
         lastQueueAt: 0,
+        hasQueuedIncrementalExtraction: false,
         lastSegmentEndMs: 0,
         lastAudioEndMs: 0,
         audioChunksReceived: 0,
@@ -278,16 +280,25 @@ export function setupSockets(app: FastifyInstance) {
 
               const elapsedMs = Date.now() - current.lastQueueAt;
               const newSegments = sequence - current.lastQueuedSequence;
+              const isInitialExtraction = !current.hasQueuedIncrementalExtraction;
+              const requiredChars = isInitialExtraction
+                ? EXTRACTION_INITIAL_MIN_CHARS
+                : EXTRACTION_MIN_CHARS;
               const shouldQueueByLoad =
-                current.bufferedCharsSinceQueue >= EXTRACTION_MIN_CHARS &&
-                newSegments >= EXTRACTION_MIN_SEGMENTS &&
-                elapsedMs >= EXTRACTION_MIN_INTERVAL_MS;
+                current.bufferedCharsSinceQueue >= requiredChars &&
+                newSegments >= 1 &&
+                (isInitialExtraction || elapsedMs >= EXTRACTION_MIN_INTERVAL_MS);
 
               if (shouldQueueByLoad) {
-                await queueIncrementalExtraction(consultaId, sequence, "streaming_batch");
+                await queueIncrementalExtraction(
+                  consultaId,
+                  sequence,
+                  isInitialExtraction ? "streaming_initial" : "streaming_incremental"
+                );
                 current.lastQueuedSequence = sequence;
                 current.bufferedCharsSinceQueue = 0;
                 current.lastQueueAt = Date.now();
+                current.hasQueuedIncrementalExtraction = true;
               }
             })
             .catch((error) => {
