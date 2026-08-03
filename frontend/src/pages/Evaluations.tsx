@@ -54,6 +54,8 @@ type EvaluationContext = {
   notaMedivozAsistida: string;
   notaEssi: string;
   duracionMedivozMs: number;
+  duracionEdicionMedivozMs: number;
+  duracionValidacionMedivozMs: number;
   evaluacion: null | {
     notaEssi: string;
     puntajesMedivoz: CompletedScores;
@@ -62,8 +64,8 @@ type EvaluationContext = {
     promedioEssi: number;
     diferenciaPromedio: number;
     duracionMedivozMs: number;
-    duracionEssiMs: number;
-    diferenciaTiempoMs: number;
+    duracionEdicionMedivozMs: number;
+    duracionValidacionMedivozMs: number;
     comentarios: string | null;
   };
 };
@@ -86,7 +88,6 @@ export default function Evaluations() {
   const [essiNote, setEssiNote] = useState("");
   const [scoresMedivoz, setScoresMedivoz] = useState<Scores>(emptyScores);
   const [scoresEssi, setScoresEssi] = useState<Scores>(emptyScores);
-  const [essiMinutes, setEssiMinutes] = useState("");
   const [comments, setComments] = useState("");
   const [createEvaluatorOpen, setCreateEvaluatorOpen] = useState(false);
   const [evaluatorForm, setEvaluatorForm] = useState({ email: "", password: "", nombreCompleto: "" });
@@ -111,7 +112,6 @@ export default function Evaluations() {
     setEssiNote(saved?.notaEssi || contextQuery.data?.notaEssi || "");
     setScoresMedivoz(saved?.puntajesMedivoz || emptyScores());
     setScoresEssi(saved?.puntajesEssi || emptyScores());
-    setEssiMinutes(saved?.duracionEssiMs ? String(Math.round(saved.duracionEssiMs / 60_000)) : "");
     setComments(saved?.comentarios || "");
   }, [contextQuery.data]);
 
@@ -123,7 +123,6 @@ export default function Evaluations() {
       return api.put(`/evaluations/consultations/${selectedId}`, {
         puntajesMedivoz: scoresMedivoz,
         puntajesEssi: scoresEssi,
-        duracionEssiMs: Math.round(Number(essiMinutes) * 60_000),
         comentarios: comments || null,
       });
     },
@@ -149,7 +148,7 @@ export default function Evaluations() {
     () => Object.values(scoresMedivoz).filter((score) => score !== null).length + Object.values(scoresEssi).filter((score) => score !== null).length,
     [scoresMedivoz, scoresEssi]
   );
-  const canSave = essiNote.trim().length >= 20 && essiMinutes.trim() !== "" && Number.isFinite(Number(essiMinutes)) && Number(essiMinutes) >= 0 && isComplete(scoresMedivoz) && isComplete(scoresEssi);
+  const canSave = essiNote.trim().length >= 20 && isComplete(scoresMedivoz) && isComplete(scoresEssi);
 
   const setScore = (target: "medivoz" | "essi", dimension: Dimension, value: string) => {
     const setter = target === "medivoz" ? setScoresMedivoz : setScoresEssi;
@@ -220,7 +219,7 @@ export default function Evaluations() {
               <section className="min-w-0">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm"><Scale className="h-4 w-4 text-primary" /><span className="font-mono">{contextQuery.data.codigoConsulta}</span></div>
-                  <div className="flex flex-wrap gap-2 text-sm"><Badge variant="outline">Medivoz: {formatAverage(scoresMedivoz)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge><Badge variant="outline">Edición Medivoz: {formatMinutes(contextQuery.data.duracionMedivozMs)}</Badge></div>
+                  <div className="flex flex-wrap gap-2 text-sm"><Badge variant="outline">Medivoz: {formatAverage(scoresMedivoz)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge><Badge variant="outline">Edición: {formatMinutes(contextQuery.data.duracionEdicionMedivozMs)}</Badge><Badge variant="outline">Validación: {formatMinutes(contextQuery.data.duracionValidacionMedivozMs)}</Badge></div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -245,9 +244,8 @@ export default function Evaluations() {
                   </table>
                 </section>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
+                <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
                   <Textarea value={comments} onChange={(event) => setComments(event.target.value)} rows={3} placeholder="Comentarios del evaluador" className="resize-none" />
-                  <div><Label htmlFor="essi-minutes" className="text-xs">Tiempo ESSI (minutos)</Label><Input id="essi-minutes" type="number" min="0" value={essiMinutes} onChange={(event) => setEssiMinutes(event.target.value)} className="mt-1" /></div>
                   <Button className="h-auto min-h-11" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                     {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Guardar evaluación
                   </Button>

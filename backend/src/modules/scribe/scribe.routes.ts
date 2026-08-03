@@ -41,6 +41,7 @@ const saveRecordSchema = z.object({
   notaEssi: z.string().max(30000).nullable().optional(),
   sesionEdicionId: z.string().uuid().nullable().optional(),
   duracionEdicionTotalMs: z.number().int().nonnegative().nullable().optional(),
+  duracionEdicionSesionMs: z.number().int().nonnegative().nullable().optional(),
   secciones: z.array(
     z.object({
       nombre: z.string(),
@@ -265,6 +266,7 @@ export async function scribeRoutes(app: FastifyInstance) {
         notaEssi,
         sesionEdicionId,
         duracionEdicionTotalMs,
+        duracionEdicionSesionMs,
       } = request.body as any;
 
       try {
@@ -287,6 +289,7 @@ export async function scribeRoutes(app: FastifyInstance) {
           notaEssi,
           sesionEdicionId,
           duracionEdicionTotalMs,
+          duracionEdicionSesionMs,
         });
 
         logger.info("[scribe-route] save:done", {
@@ -381,6 +384,69 @@ export async function scribeRoutes(app: FastifyInstance) {
           message: error?.message || "unknown",
         });
         return reply.code(400).send({ error: "No se pudo guardar el tiempo de edicion" });
+      }
+    }
+  );
+
+  app.get("/record/:consultaId/validation-session", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId } = request.params as any;
+    try {
+      const consultation = await getDoctorConsultation(consultaId, doctorId);
+      if (!consultation) return reply.code(404).send({ error: "Consulta no encontrada" });
+      const session = await scribeService.getValidationSession(consultaId, doctorId);
+      return { session: session || null };
+    } catch (error: any) {
+      logger.error("[scribe-route] validation-session:get:failed", {
+        doctorId,
+        consultaId,
+        message: error?.message || "unknown",
+      });
+      return reply.code(400).send({ error: "No se pudo consultar el tiempo de validacion" });
+    }
+  });
+
+  app.post("/record/:consultaId/validation-sessions/start", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId } = request.params as any;
+    try {
+      const session = await scribeService.startValidationSession(consultaId, doctorId);
+      if (!session) return reply.code(404).send({ error: "Consulta no encontrada" });
+      return session;
+    } catch (error: any) {
+      logger.error("[scribe-route] validation-session:start:failed", {
+        doctorId,
+        consultaId,
+        message: error?.message || "unknown",
+      });
+      return reply.code(400).send({ error: "No se pudo iniciar la medicion de validacion" });
+    }
+  });
+
+  app.patch(
+    "/record/:consultaId/validation-sessions/:validationSessionId",
+    { schema: { body: convertSchema(syncEditSessionSchema) } },
+    async (request, reply) => {
+      const doctorId = (request.user as any).sub;
+      const { consultaId, validationSessionId } = request.params as any;
+      const input = request.body as any;
+      try {
+        const session = await scribeService.syncValidationSession(
+          consultaId,
+          doctorId,
+          validationSessionId,
+          input
+        );
+        if (!session) return reply.code(404).send({ error: "Sesion de validacion no encontrada" });
+        return session;
+      } catch (error: any) {
+        logger.error("[scribe-route] validation-session:sync:failed", {
+          doctorId,
+          consultaId,
+          validationSessionId,
+          message: error?.message || "unknown",
+        });
+        return reply.code(400).send({ error: "No se pudo guardar el tiempo de validacion" });
       }
     }
   );

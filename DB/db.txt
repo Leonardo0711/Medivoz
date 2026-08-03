@@ -734,6 +734,31 @@ Table sesiones_edicion_ficha {
   '''
 }
 
+Table sesiones_validacion_ficha {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ficha_medica_id uuid [not null, ref: > fichas_medicas.id]
+  doctor_id uuid [ref: > usuarios.id]
+  estado varchar(20) [not null, default: 'activa', note: "activa, pausada o completada"]
+  iniciado_en timestamptz [not null, default: `now()`]
+  ultima_actividad_en timestamptz [not null, default: `now()`]
+  finalizado_en timestamptz
+  duracion_activa_ms int [not null, default: 0, note: "Tiempo de validacion acumulado mientras la ficha esta abierta"]
+  creado_en timestamptz [not null, default: `now()`]
+  actualizado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (ficha_medica_id, iniciado_en)
+    (doctor_id, iniciado_en)
+  }
+
+  Note: '''
+  Inicia cuando el doctor pulsa Validar por primera vez.
+  Se pausa al salir de la anamnesis y continua al volver.
+  No incluye el tiempo usado para escribir o pegar la nota ESSI.
+  La VPS aplica un indice unico parcial por ficha y doctor para la sesion activa.
+  '''
+}
+
 Table cambios_seccion_ficha {
   id uuid [pk, default: `gen_random_uuid()`]
   seccion_ficha_id uuid [not null, ref: > secciones_ficha_medica.id]
@@ -821,9 +846,9 @@ Table evaluaciones_pdqi9 {
   promedio_medivoz decimal(4,2) [not null]
   promedio_essi decimal(4,2) [not null]
   diferencia_promedio decimal(4,2) [not null, note: "Promedio Medivoz asistido menos promedio ESSI"]
-  duracion_medivoz_ms bigint [not null, default: 0, note: "Tiempo activo medido mientras el medico revisa o edita Medivoz"]
-  duracion_essi_ms bigint [not null, default: 0, note: "Tiempo de documentacion ESSI registrado por el evaluador"]
-  diferencia_tiempo_ms bigint [not null, default: 0, note: "Tiempo Medivoz asistido menos tiempo ESSI"]
+  duracion_medivoz_ms bigint [not null, default: 0, note: "Tiempo total asistido: edicion mas validacion"]
+  duracion_edicion_medivoz_ms bigint [not null, default: 0, note: "Tiempo activo mientras el medico modifica campos Medivoz"]
+  duracion_validacion_medivoz_ms bigint [not null, default: 0, note: "Tiempo desde la primera validacion, pausado al salir"]
   comentarios text
   creado_en timestamptz [not null, default: `now()`]
   actualizado_en timestamptz [not null, default: `now()`]

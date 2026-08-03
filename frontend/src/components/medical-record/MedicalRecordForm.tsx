@@ -62,6 +62,9 @@ interface MedicalRecordFormProps {
   validationWarnings?: string[];
   editElapsedMs?: number;
   isEditTiming?: boolean;
+  validationElapsedMs?: number;
+  isValidationTiming?: boolean;
+  hasValidationStarted?: boolean;
 }
 
 const formatEditTime = (durationMs: number) => {
@@ -175,6 +178,9 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
   validationWarnings = [],
   editElapsedMs = 0,
   isEditTiming = false,
+  validationElapsedMs = 0,
+  isValidationTiming = false,
+  hasValidationStarted = false,
 }: MedicalRecordFormProps) {
   const [validatingField, setValidatingField] = useState<keyof MedicalRecordFormData | null>(null);
   const isModified = (field: keyof MedicalRecordFormData) => modifiedFields.has(field);
@@ -408,7 +414,21 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
               className={isEditTiming ? "border-sky-300 bg-sky-50 text-sky-800" : ""}
             >
               <Clock className="mr-1 h-3.5 w-3.5" />
-              {isEditTiming ? "Edición activa" : "Edición pausada"} {formatEditTime(editElapsedMs)}
+              {isEditTiming ? "Editando" : "Edición pausada"} {formatEditTime(editElapsedMs)}
+            </Badge>
+          )}
+          {hasValidationStarted && (
+            <Badge
+              variant="outline"
+              className={
+                isValidationTiming
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : ""
+              }
+            >
+              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+              {isValidationTiming ? "Validando" : "Validación pausada"}{" "}
+              {formatEditTime(validationElapsedMs)}
             </Badge>
           )}
           <Badge variant="outline">

@@ -1,10 +1,11 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { anamnesisTemplateSections, consultations } from "../../db/schema/clinical.js";
 import {
   medicalRecords,
   medicalRecordChanges,
   medicalRecordEditSessions,
+  medicalRecordValidationSessions,
   medicalRecordSectionEvidence,
   medicalRecordSections,
   medicalRecordVersions,
@@ -266,6 +267,7 @@ export class ScribeService {
     notaEssi?: string | null;
     sesionEdicionId?: string | null;
     duracionEdicionTotalMs?: number | null;
+    duracionEdicionSesionMs?: number | null;
   }) {
     return db.transaction(async (tx) => {
       const record = await this.getOrCreateRecord(
@@ -340,10 +342,11 @@ export class ScribeService {
         await tx
           .update(medicalRecordEditSessions)
           .set({
-            estado: "completada",
-            duracionActivaMs: input.duracionEdicionTotalMs ?? 0,
+            estado: "pausada",
+            duracionActivaMs:
+              input.duracionEdicionSesionMs ?? input.duracionEdicionTotalMs ?? 0,
             ultimaActividadEn: now,
-            finalizadoEn: now,
+            finalizadoEn: null,
             updatedAt: now,
           })
           .where(
@@ -669,7 +672,46 @@ export class ScribeService {
       )
       .limit(1);
 
-    if (active) return active;
+    const [totalRow] = await db
+      .select({ total: sql<number>`coalesce(sum(${medicalRecordEditSessions.duracionActivaMs}), 0)` })
+      .from(medicalRecordEditSessions)
+      .where(
+        and(
+          eq(medicalRecordEditSessions.fichaId, record.id),
+          eq(medicalRecordEditSessions.doctorId, doctorId)
+        )
+      );
+    const accumulated = Number(totalRow?.total || 0);
+
+    if (active) return { ...active, duracionAcumuladaMs: accumulated };
+
+    const [paused] = await db
+      .select()
+      .from(medicalRecordEditSessions)
+      .where(
+        and(
+          eq(medicalRecordEditSessions.fichaId, record.id),
+          eq(medicalRecordEditSessions.doctorId, doctorId),
+          eq(medicalRecordEditSessions.estado, "pausada")
+        )
+      )
+      .orderBy(desc(medicalRecordEditSessions.updatedAt))
+      .limit(1);
+
+    if (paused) {
+      const [resumed] = await db
+        .update(medicalRecordEditSessions)
+        .set({ estado: "activa", ultimaActividadEn: new Date(), updatedAt: new Date() })
+        .where(eq(medicalRecordEditSessions.id, paused.id))
+        .returning();
+      logger.info("[scribe] edit-session:resumed", {
+        consultaId,
+        fichaId: record.id,
+        editSessionId: resumed.id,
+        accumulatedDurationMs: accumulated,
+      });
+      return { ...resumed, duracionAcumuladaMs: accumulated };
+    }
 
     const [created] = await db
       .insert(medicalRecordEditSessions)
@@ -681,7 +723,131 @@ export class ScribeService {
       editSessionId: created.id,
       doctorId,
     });
-    return created;
+    return { ...created, duracionAcumuladaMs: accumulated };
+  }
+
+  async getValidationSession(consultaId: string, doctorId: string) {
+    const consultation = await db.query.consultations.findFirst({
+      where: and(eq(consultations.id, consultaId), eq(consultations.doctorId, doctorId)),
+    });
+    if (!consultation) return null;
+
+    const record = await this.getOrCreateRecord(consultaId, { doctorId });
+    const sessions = await db
+      .select()
+      .from(medicalRecordValidationSessions)
+      .where(
+        and(
+          eq(medicalRecordValidationSessions.fichaId, record.id),
+          eq(medicalRecordValidationSessions.doctorId, doctorId)
+        )
+      )
+      .orderBy(desc(medicalRecordValidationSessions.updatedAt));
+    if (!sessions.length) return undefined;
+    const accumulated = sessions.reduce((sum, session) => sum + session.duracionActivaMs, 0);
+    return { ...sessions[0], duracionAcumuladaMs: accumulated };
+  }
+
+  async startValidationSession(consultaId: string, doctorId: string) {
+    const consultation = await db.query.consultations.findFirst({
+      where: and(eq(consultations.id, consultaId), eq(consultations.doctorId, doctorId)),
+    });
+    if (!consultation) return null;
+
+    const record = await this.getOrCreateRecord(consultaId, { doctorId });
+    const sessions = await db
+      .select()
+      .from(medicalRecordValidationSessions)
+      .where(
+        and(
+          eq(medicalRecordValidationSessions.fichaId, record.id),
+          eq(medicalRecordValidationSessions.doctorId, doctorId)
+        )
+      )
+      .orderBy(desc(medicalRecordValidationSessions.updatedAt));
+    const accumulated = sessions.reduce((sum, session) => sum + session.duracionActivaMs, 0);
+    const active = sessions.find((session) => session.estado === "activa");
+    if (active) return { ...active, duracionAcumuladaMs: accumulated };
+
+    const latest = sessions[0];
+    if (latest) {
+      const [resumed] = await db
+        .update(medicalRecordValidationSessions)
+        .set({
+          estado: "activa",
+          ultimaActividadEn: new Date(),
+          finalizadoEn: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(medicalRecordValidationSessions.id, latest.id))
+        .returning();
+      logger.info("[scribe] validation-session:resumed", {
+        consultaId,
+        fichaId: record.id,
+        validationSessionId: resumed.id,
+        accumulatedDurationMs: accumulated,
+      });
+      return { ...resumed, duracionAcumuladaMs: accumulated };
+    }
+
+    const [created] = await db
+      .insert(medicalRecordValidationSessions)
+      .values({ fichaId: record.id, doctorId, estado: "activa" })
+      .returning();
+    logger.info("[scribe] validation-session:started", {
+      consultaId,
+      fichaId: record.id,
+      validationSessionId: created.id,
+      doctorId,
+    });
+    return { ...created, duracionAcumuladaMs: 0 };
+  }
+
+  async syncValidationSession(
+    consultaId: string,
+    doctorId: string,
+    validationSessionId: string,
+    input: { duracionActivaMs: number; estado?: "activa" | "pausada" | "completada" }
+  ) {
+    const consultation = await db.query.consultations.findFirst({
+      where: and(eq(consultations.id, consultaId), eq(consultations.doctorId, doctorId)),
+    });
+    if (!consultation) return null;
+
+    const record = await this.getOrCreateRecord(consultaId, { doctorId });
+    const [existing] = await db
+      .select()
+      .from(medicalRecordValidationSessions)
+      .where(
+        and(
+          eq(medicalRecordValidationSessions.id, validationSessionId),
+          eq(medicalRecordValidationSessions.fichaId, record.id),
+          eq(medicalRecordValidationSessions.doctorId, doctorId)
+        )
+      )
+      .limit(1);
+    if (!existing) return null;
+
+    const now = new Date();
+    const nextState = input.estado ?? existing.estado;
+    const [updated] = await db
+      .update(medicalRecordValidationSessions)
+      .set({
+        estado: nextState,
+        duracionActivaMs: Math.max(existing.duracionActivaMs, input.duracionActivaMs),
+        ultimaActividadEn: now,
+        finalizadoEn: nextState === "completada" ? now : null,
+        updatedAt: now,
+      })
+      .where(eq(medicalRecordValidationSessions.id, existing.id))
+      .returning();
+    logger.info("[scribe] validation-session:synced", {
+      consultaId,
+      validationSessionId,
+      state: updated.estado,
+      activeDurationMs: updated.duracionActivaMs,
+    });
+    return updated;
   }
 
   async syncEditSession(
@@ -743,6 +909,10 @@ export class ScribeService {
       .select()
       .from(medicalRecordEditSessions)
       .where(eq(medicalRecordEditSessions.fichaId, record.id));
+    const validationSessions = await db
+      .select()
+      .from(medicalRecordValidationSessions)
+      .where(eq(medicalRecordValidationSessions.fichaId, record.id));
     const changes = await db
       .select({
         section: medicalRecordSections.nombre,
@@ -764,12 +934,18 @@ export class ScribeService {
     return {
       fichaId: record.id,
       totalActiveEditTimeMs: sessions.reduce((sum, session) => sum + session.duracionActivaMs, 0),
+      totalActiveValidationTimeMs: validationSessions.reduce(
+        (sum, session) => sum + session.duracionActivaMs,
+        0
+      ),
       editSessionCount: sessions.length,
+      validationSessionCount: validationSessions.length,
       measuredChangeCount: measuredChanges.length,
       averageChangePercentage: measuredChanges.length
         ? Number((totalChangePercentage / measuredChanges.length).toFixed(2))
         : null,
       sessions,
+      validationSessions,
       changes: changes.map((change) => ({
         ...change,
         changePercentage: change.editDistance === null

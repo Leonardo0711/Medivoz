@@ -75,6 +75,9 @@ export default function Session() {
     refreshRecordData,
     editElapsedMs,
     isEditTiming,
+    validationElapsedMs,
+    isValidationTiming,
+    hasValidationStarted,
   } = useMedicalRecord(currentSessionId, patientId);
 
   const hasPendingRecordWork = Boolean(
@@ -371,6 +374,9 @@ export default function Session() {
                             validationWarnings={validationWarnings}
                             editElapsedMs={editElapsedMs}
                             isEditTiming={isEditTiming}
+                            validationElapsedMs={validationElapsedMs}
+                            isValidationTiming={isValidationTiming}
+                            hasValidationStarted={hasValidationStarted}
                             onAcceptSuggestion={handleAcceptSuggestion}
                             onRejectSuggestion={handleRejectSuggestion}
                             onBlockSection={handleBlockSection}

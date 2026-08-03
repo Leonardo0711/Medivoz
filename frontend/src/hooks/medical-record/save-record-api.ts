@@ -25,7 +25,7 @@ export const saveMedicalRecord = async (
   > = {},
   recordSummary: RecordSummaryData = { resumenSugeridoIa: "", resumenActual: "", notaEssi: "" },
   editSessionId: string | null = null,
-  totalEditDurationMs = 0
+  editSessionDurationMs = 0
 ) => {
   if (!patientId || !sessionId) {
     toast.error("No hay un paciente o sesion seleccionada");
@@ -122,7 +122,7 @@ export const saveMedicalRecord = async (
       resumenActual: recordSummary.resumenActual || recordSummary.resumenSugeridoIa || null,
       notaEssi: recordSummary.notaEssi || null,
       sesionEdicionId: editSessionId,
-      duracionEdicionTotalMs: totalEditDurationMs,
+      duracionEdicionSesionMs: editSessionDurationMs,
       secciones,
     });
 

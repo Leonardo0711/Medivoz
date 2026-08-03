@@ -18,6 +18,20 @@ import {
 import { logger } from "@/utils/logger";
 import { toast } from "sonner";
 import { useRecordEditTimer } from "./use-record-edit-timer";
+import { useRecordValidationTimer } from "./use-record-validation-timer";
+
+const RECORD_FIELDS: Array<keyof MedicalRecordFormData> = [
+  "motivo_consulta",
+  "tiempo_enfermedad",
+  "forma_inicio",
+  "curso_enfermedad",
+  "historia_cronologica",
+  "antecedentes",
+  "sintomas_principales",
+  "estado_funcional_basal",
+  "estudios_previos",
+  "notas_adicionales",
+];
 
 export function useMedicalRecord(sessionId: string | null, patientId: string | null) {
   const [isSaving, setIsSaving] = useState(false);
@@ -48,9 +62,16 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     isTiming: isEditTiming,
     markActivity: markEditActivity,
     snapshot: snapshotEditTimer,
+    pause: pauseEditTimer,
     clearFieldDuration,
-    resetAfterSave: resetEditTimerAfterSave,
   } = useRecordEditTimer(sessionId);
+  const {
+    elapsedMs: validationElapsedMs,
+    isTiming: isValidationTiming,
+    hasStarted: hasValidationStarted,
+    start: startValidationTimer,
+    complete: completeValidationTimer,
+  } = useRecordValidationTimer(sessionId);
 
   const [formData, setFormData] = useState<MedicalRecordFormData>({
     motivo_consulta: "",
@@ -258,6 +279,9 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         return false;
       }
 
+      // La validacion empieza con la primera accion explicita del medico.
+      void startValidationTimer();
+
       if (suggestion && !doctorEditedSuggestion && !visibleText.trim()) {
         setFormData((prev) => ({ ...prev, [field]: suggestion }));
       } else if (contentOverride) {
@@ -268,6 +292,8 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         [field]: summary,
       }));
       try {
+        // Cierra el intervalo de edicion antes de medir y validar este campo.
+        await pauseEditTimer();
         const timer = await snapshotEditTimer();
         const reviewedSection = await reviewMedicalRecordSection(sessionId, field, "accept", {
           contenido: currentText,
@@ -315,6 +341,15 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
               },
         }));
         await refreshValidation();
+        const allFieldsReviewed = RECORD_FIELDS.every((candidate) => {
+          if (candidate === field) return true;
+          const state = sectionMeta[candidate]?.estado;
+          return (state === "revisada" || state === "bloqueada") &&
+            !modifiedFields.has(candidate);
+        });
+        if (allFieldsReviewed) {
+          await completeValidationTimer();
+        }
         toast.success("Sección validada correctamente");
         return true;
       } catch (error) {
@@ -326,10 +361,14 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     [
       clearFieldDuration,
       formData,
+      completeValidationTimer,
+      modifiedFields,
+      pauseEditTimer,
       refreshValidation,
       sectionMeta,
       sessionId,
       snapshotEditTimer,
+      startValidationTimer,
       summaryData,
     ]
   );
@@ -383,13 +422,12 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     (value: string) => {
       dirtyRecordSummaryRef.current.notaEssi = true;
       markRecordChanged();
-      markEditActivity(null);
       setRecordSummary((prev) => ({
         ...prev,
         notaEssi: value,
       }));
     },
-    [markEditActivity, markRecordChanged]
+    [markRecordChanged]
   );
 
   useEffect(() => {
@@ -494,6 +532,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
 
   const handleSave = useCallback(async () => {
     try {
+      await pauseEditTimer();
       const editTimer = await snapshotEditTimer();
 
       const saved = await saveMedicalRecord(
@@ -507,7 +546,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         sectionMeta,
         recordSummary,
         editTimer.editSessionId,
-        editTimer.totalDurationMs
+        editTimer.sessionDurationMs
       );
       if (saved) {
         dirtyFieldsRef.current.clear();
@@ -523,7 +562,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
             recordSummary.resumenActual.trim() || recordSummary.resumenSugeridoIa.trim()
           ),
         });
-        resetEditTimerAfterSave();
+        await completeValidationTimer();
         await loadRecordData();
         await refreshValidation();
       }
@@ -540,9 +579,10 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     summaryData,
     sectionMeta,
     recordSummary,
+    completeValidationTimer,
     loadRecordData,
+    pauseEditTimer,
     refreshValidation,
-    resetEditTimerAfterSave,
     snapshotEditTimer,
   ]);
 
@@ -589,6 +629,9 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     refreshRecordData: loadRecordData,
     editElapsedMs,
     isEditTiming,
+    validationElapsedMs,
+    isValidationTiming,
+    hasValidationStarted,
   };
 }
 

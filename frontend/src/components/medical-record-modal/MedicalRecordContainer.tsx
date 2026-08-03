@@ -32,6 +32,9 @@ interface MedicalRecordContainerProps {
   validationWarnings?: string[];
   editElapsedMs?: number;
   isEditTiming?: boolean;
+  validationElapsedMs?: number;
+  isValidationTiming?: boolean;
+  hasValidationStarted?: boolean;
   onAcceptSuggestion?: (
     field: keyof MedicalRecordFormData,
     contentOverride?: string
@@ -71,6 +74,9 @@ export const MedicalRecordContainer = memo(
     validationWarnings,
     editElapsedMs,
     isEditTiming,
+    validationElapsedMs,
+    isValidationTiming,
+    hasValidationStarted,
     onAcceptSuggestion,
     onRejectSuggestion,
     onBlockSection,
@@ -174,6 +180,9 @@ export const MedicalRecordContainer = memo(
             validationWarnings={validationWarnings}
             editElapsedMs={editElapsedMs}
             isEditTiming={isEditTiming}
+            validationElapsedMs={validationElapsedMs}
+            isValidationTiming={isValidationTiming}
+            hasValidationStarted={hasValidationStarted}
             onChange={handleChange}
             onAcceptSuggestion={onAcceptSuggestion}
             onRejectSuggestion={onRejectSuggestion}
@@ -209,6 +218,9 @@ export const MedicalRecordContainer = memo(
       prevProps.validationWarnings === nextProps.validationWarnings &&
       prevProps.editElapsedMs === nextProps.editElapsedMs &&
       prevProps.isEditTiming === nextProps.isEditTiming &&
+      prevProps.validationElapsedMs === nextProps.validationElapsedMs &&
+      prevProps.isValidationTiming === nextProps.isValidationTiming &&
+      prevProps.hasValidationStarted === nextProps.hasValidationStarted &&
       prevProps.isSaving === nextProps.isSaving &&
       prevProps.isExporting === nextProps.isExporting &&
       prevProps.patientId === nextProps.patientId &&

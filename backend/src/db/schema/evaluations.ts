@@ -31,8 +31,12 @@ export const pdqi9Evaluations = pgTable(
     promedioEssi: numeric("promedio_essi", { precision: 4, scale: 2 }).notNull(),
     diferenciaPromedio: numeric("diferencia_promedio", { precision: 4, scale: 2 }).notNull(),
     duracionMedivozMs: bigint("duracion_medivoz_ms", { mode: "number" }).notNull(),
-    duracionEssiMs: bigint("duracion_essi_ms", { mode: "number" }).notNull(),
-    diferenciaTiempoMs: bigint("diferencia_tiempo_ms", { mode: "number" }).notNull(),
+    duracionEdicionMedivozMs: bigint("duracion_edicion_medivoz_ms", {
+      mode: "number",
+    }).notNull(),
+    duracionValidacionMedivozMs: bigint("duracion_validacion_medivoz_ms", {
+      mode: "number",
+    }).notNull(),
     comentarios: text("comentarios"),
     createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),

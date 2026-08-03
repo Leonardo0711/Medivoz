@@ -87,6 +87,19 @@ export const medicalRecordEditSessions = pgTable("sesiones_edicion_ficha", {
   updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const medicalRecordValidationSessions = pgTable("sesiones_validacion_ficha", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fichaId: uuid("ficha_medica_id").notNull().references(() => medicalRecords.id, { onDelete: "cascade" }),
+  doctorId: uuid("doctor_id").references(() => users.id, { onDelete: "set null" }),
+  estado: varchar("estado", { length: 20 }).default("activa").notNull(),
+  iniciadoEn: timestamp("iniciado_en", { withTimezone: true }).defaultNow().notNull(),
+  ultimaActividadEn: timestamp("ultima_actividad_en", { withTimezone: true }).defaultNow().notNull(),
+  finalizadoEn: timestamp("finalizado_en", { withTimezone: true }),
+  duracionActivaMs: integer("duracion_activa_ms").default(0).notNull(),
+  createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const medicalRecordChanges = pgTable("cambios_seccion_ficha", {
   id: uuid("id").primaryKey().defaultRandom(),
   seccionId: uuid("seccion_ficha_id").notNull().references(() => medicalRecordSections.id, { onDelete: "cascade" }),

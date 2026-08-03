@@ -2,7 +2,12 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { pdqi9Evaluations, Pdqi9Scores } from "../../db/schema/evaluations.js";
 import { consultations } from "../../db/schema/clinical.js";
-import { medicalRecordEditSessions, medicalRecordSections, medicalRecords } from "../../db/schema/scribe.js";
+import {
+  medicalRecordEditSessions,
+  medicalRecordSections,
+  medicalRecords,
+  medicalRecordValidationSessions,
+} from "../../db/schema/scribe.js";
 import { SavePdqi9EvaluationInput } from "./evaluations.schema.js";
 import { logger } from "../../core/utils/logger.js";
 
@@ -122,10 +127,19 @@ export class EvaluationsService {
       );
     if (Number(seccionesPendientesIa || 0) > 0) return null;
 
-    const [editMetrics] = await db
-      .select({ duracionMedivozMs: sql<number>`coalesce(sum(${medicalRecordEditSessions.duracionActivaMs}), 0)` })
-      .from(medicalRecordEditSessions)
-      .where(eq(medicalRecordEditSessions.fichaId, row.fichaId));
+    const [[editMetrics], [validationMetrics]] = await Promise.all([
+      db
+        .select({ durationMs: sql<number>`coalesce(sum(${medicalRecordEditSessions.duracionActivaMs}), 0)` })
+        .from(medicalRecordEditSessions)
+        .where(eq(medicalRecordEditSessions.fichaId, row.fichaId)),
+      db
+        .select({ durationMs: sql<number>`coalesce(sum(${medicalRecordValidationSessions.duracionActivaMs}), 0)` })
+        .from(medicalRecordValidationSessions)
+        .where(eq(medicalRecordValidationSessions.fichaId, row.fichaId)),
+    ]);
+    const duracionEdicionMedivozMs = Number(editMetrics?.durationMs || 0);
+    const duracionValidacionMedivozMs = Number(validationMetrics?.durationMs || 0);
+    const duracionMedivozMs = duracionEdicionMedivozMs + duracionValidacionMedivozMs;
 
     const evaluation = await db.query.pdqi9Evaluations.findFirst({
       where: and(eq(pdqi9Evaluations.consultaId, consultaId), eq(pdqi9Evaluations.evaluadorId, evaluadorId)),
@@ -135,7 +149,9 @@ export class EvaluationsService {
       consultaId,
       evaluadorId,
       medivozNoteChars: notaMedivozAsistida.length,
-      duracionMedivozMs: editMetrics?.duracionMedivozMs || 0,
+      duracionEdicionMedivozMs,
+      duracionValidacionMedivozMs,
+      duracionMedivozMs,
       hasEvaluation: Boolean(evaluation),
     });
 
@@ -145,7 +161,9 @@ export class EvaluationsService {
       fecha: row.fecha || row.createdAt,
       notaMedivozAsistida,
       notaEssi,
-      duracionMedivozMs: Number(editMetrics?.duracionMedivozMs || 0),
+      duracionMedivozMs,
+      duracionEdicionMedivozMs,
+      duracionValidacionMedivozMs,
       evaluacion: evaluation
         ? {
             id: evaluation.id,
@@ -156,8 +174,8 @@ export class EvaluationsService {
             promedioEssi: toNumber(evaluation.promedioEssi),
             diferenciaPromedio: toNumber(evaluation.diferenciaPromedio),
             duracionMedivozMs: evaluation.duracionMedivozMs,
-            duracionEssiMs: evaluation.duracionEssiMs,
-            diferenciaTiempoMs: evaluation.diferenciaTiempoMs,
+            duracionEdicionMedivozMs: evaluation.duracionEdicionMedivozMs,
+            duracionValidacionMedivozMs: evaluation.duracionValidacionMedivozMs,
             comentarios: evaluation.comentarios,
             updatedAt: evaluation.updatedAt,
           }
@@ -173,7 +191,6 @@ export class EvaluationsService {
     const promedioEssi = averageScore(input.puntajesEssi as Pdqi9Scores);
     const diferenciaPromedio = Math.round((promedioMedivoz - promedioEssi) * 100) / 100;
     const duracionMedivozMs = context.duracionMedivozMs;
-    const diferenciaTiempoMs = duracionMedivozMs - input.duracionEssiMs;
     const payload = {
       notaMedivozAsistida: context.notaMedivozAsistida,
       notaEssi: context.notaEssi,
@@ -183,8 +200,8 @@ export class EvaluationsService {
       promedioEssi: String(promedioEssi),
       diferenciaPromedio: String(diferenciaPromedio),
       duracionMedivozMs,
-      duracionEssiMs: input.duracionEssiMs,
-      diferenciaTiempoMs,
+      duracionEdicionMedivozMs: context.duracionEdicionMedivozMs,
+      duracionValidacionMedivozMs: context.duracionValidacionMedivozMs,
       comentarios: input.comentarios || null,
       updatedAt: new Date(),
     };
@@ -208,7 +225,8 @@ export class EvaluationsService {
       promedioEssi,
       diferenciaPromedio,
       duracionMedivozMs,
-      duracionEssiMs: input.duracionEssiMs,
+      duracionEdicionMedivozMs: context.duracionEdicionMedivozMs,
+      duracionValidacionMedivozMs: context.duracionValidacionMedivozMs,
     });
 
     return {

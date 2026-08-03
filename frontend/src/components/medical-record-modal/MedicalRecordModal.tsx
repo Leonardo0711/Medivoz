@@ -53,6 +53,9 @@ export function MedicalRecordModal({
     refreshRecordData,
     editElapsedMs,
     isEditTiming,
+    validationElapsedMs,
+    isValidationTiming,
+    hasValidationStarted,
   } = useMedicalRecord(sessionId || null, patientId || null);
 
   const handleSaveAndClose = async () => {
@@ -132,6 +135,9 @@ export function MedicalRecordModal({
               validationWarnings={validationWarnings}
               editElapsedMs={editElapsedMs}
               isEditTiming={isEditTiming}
+              validationElapsedMs={validationElapsedMs}
+              isValidationTiming={isValidationTiming}
+              hasValidationStarted={hasValidationStarted}
               onAcceptSuggestion={handleAcceptSuggestion}
               onRejectSuggestion={handleRejectSuggestion}
               onBlockSection={handleBlockSection}

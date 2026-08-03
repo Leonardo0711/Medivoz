@@ -11,6 +11,7 @@ type EditableField = keyof MedicalRecordFormData;
 export type EditTimerSnapshot = {
   editSessionId: string | null;
   totalDurationMs: number;
+  sessionDurationMs: number;
   fieldDurationsMs: Partial<Record<EditableField, number>>;
 };
 
@@ -20,6 +21,7 @@ export function useRecordEditTimer(consultationId: string | null) {
   const editSessionIdRef = useRef<string | null>(null);
   const startPromiseRef = useRef<Promise<string | null> | null>(null);
   const totalDurationRef = useRef(0);
+  const previousSessionsDurationRef = useRef(0);
   const fieldDurationsRef = useRef<Partial<Record<EditableField, number>>>({});
   const activeFieldRef = useRef<EditableField | null>(null);
   const lastTickRef = useRef(0);
@@ -54,15 +56,17 @@ export function useRecordEditTimer(consultationId: string | null) {
     startPromiseRef.current = startRecordEditSession(consultationId)
       .then((session) => {
         editSessionIdRef.current = session.id;
-        totalDurationRef.current = Math.max(
-          totalDurationRef.current,
-          session.duracionActivaMs || 0
+        const accumulated = session.duracionAcumuladaMs ?? session.duracionActivaMs ?? 0;
+        previousSessionsDurationRef.current = Math.max(
+          0,
+          accumulated - (session.duracionActivaMs || 0)
         );
+        totalDurationRef.current = Math.max(totalDurationRef.current, accumulated);
         setElapsedMs(totalDurationRef.current);
         logger.info("Record edit timer started", {
           consultationId,
           editSessionId: session.id,
-          restoredDurationMs: session.duracionActivaMs || 0,
+          restoredDurationMs: accumulated,
         });
         return session.id;
       })
@@ -80,6 +84,7 @@ export function useRecordEditTimer(consultationId: string | null) {
     (field: EditableField | null = null) => {
       const now = Date.now();
       settle(now);
+      const wasTiming = timingRef.current;
       activeFieldRef.current = field;
       lastActivityRef.current = now;
       lastTickRef.current = now;
@@ -87,9 +92,19 @@ export function useRecordEditTimer(consultationId: string | null) {
         timingRef.current = true;
         setIsTiming(true);
       }
-      void ensureSession();
+      void ensureSession().then((editSessionId) => {
+        if (!editSessionId || !consultationId || wasTiming) return;
+        return syncRecordEditSession(
+          consultationId,
+          editSessionId,
+          Math.round(Math.max(0, totalDurationRef.current - previousSessionsDurationRef.current)),
+          "activa"
+        );
+      }).catch((error) =>
+        logger.warn("Could not resume record edit timer", { consultationId, error })
+      );
     },
-    [ensureSession, settle]
+    [consultationId, ensureSession, settle]
   );
 
   const snapshot = useCallback(async (): Promise<EditTimerSnapshot> => {
@@ -101,6 +116,9 @@ export function useRecordEditTimer(consultationId: string | null) {
     return {
       editSessionId,
       totalDurationMs: Math.round(totalDurationRef.current),
+      sessionDurationMs: Math.round(
+        Math.max(0, totalDurationRef.current - previousSessionsDurationRef.current)
+      ),
       fieldDurationsMs: { ...fieldDurationsRef.current },
     };
   }, [ensureSession, settle]);
@@ -109,9 +127,26 @@ export function useRecordEditTimer(consultationId: string | null) {
     delete fieldDurationsRef.current[field];
   }, []);
 
-  const resetAfterSave = useCallback(() => {
+  const pause = useCallback(async () => {
+    settle(Date.now());
+    timingRef.current = false;
+    activeFieldRef.current = null;
+    setIsTiming(false);
+    if (!editSessionIdRef.current && totalDurationRef.current <= 0) return;
+    const editSessionId = editSessionIdRef.current || (await ensureSession());
+    if (!consultationId || !editSessionId) return;
+    await syncRecordEditSession(
+      consultationId,
+      editSessionId,
+      Math.round(Math.max(0, totalDurationRef.current - previousSessionsDurationRef.current)),
+      "pausada"
+    );
+  }, [consultationId, ensureSession, settle]);
+
+  const resetForConsultation = useCallback(() => {
     editSessionIdRef.current = null;
     totalDurationRef.current = 0;
+    previousSessionsDurationRef.current = 0;
     fieldDurationsRef.current = {};
     activeFieldRef.current = null;
     timingRef.current = false;
@@ -122,8 +157,8 @@ export function useRecordEditTimer(consultationId: string | null) {
   }, []);
 
   useEffect(() => {
-    resetAfterSave();
-  }, [consultationId, resetAfterSave]);
+    resetForConsultation();
+  }, [consultationId, resetForConsultation]);
 
   useEffect(() => {
     const interval = window.setInterval(() => settle(Date.now()), 1_000);
@@ -135,11 +170,11 @@ export function useRecordEditTimer(consultationId: string | null) {
     const interval = window.setInterval(() => {
       settle(Date.now());
       const editSessionId = editSessionIdRef.current;
-      if (!editSessionId) return;
+      if (!editSessionId || !timingRef.current) return;
       void syncRecordEditSession(
         consultationId,
         editSessionId,
-        Math.round(totalDurationRef.current),
+        Math.round(Math.max(0, totalDurationRef.current - previousSessionsDurationRef.current)),
         "activa"
       ).catch((error) =>
         logger.warn("Could not sync record edit timer", { consultationId, error })
@@ -156,7 +191,7 @@ export function useRecordEditTimer(consultationId: string | null) {
       void syncRecordEditSession(
         consultationId,
         editSessionId,
-        Math.round(totalDurationRef.current),
+        Math.round(Math.max(0, totalDurationRef.current - previousSessionsDurationRef.current)),
         "pausada"
       ).catch(() => undefined);
     };
@@ -167,7 +202,7 @@ export function useRecordEditTimer(consultationId: string | null) {
     isTiming,
     markActivity,
     snapshot,
+    pause,
     clearFieldDuration,
-    resetAfterSave,
   };
 }

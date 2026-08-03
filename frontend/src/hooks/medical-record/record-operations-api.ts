@@ -134,6 +134,7 @@ export type RecordEditSession = {
   id: string;
   estado: "activa" | "pausada" | "completada";
   duracionActivaMs: number;
+  duracionAcumuladaMs?: number;
 };
 
 export const startRecordEditSession = async (sessionId: string) => {
@@ -152,6 +153,31 @@ export const syncRecordEditSession = async (
     estado,
   });
   return response.data as RecordEditSession;
+};
+
+export type RecordValidationSession = RecordEditSession;
+
+export const getRecordValidationSession = async (sessionId: string) => {
+  const response = await api.get(`/scribe/record/${sessionId}/validation-session`);
+  return (response.data?.session || null) as RecordValidationSession | null;
+};
+
+export const startRecordValidationSession = async (sessionId: string) => {
+  const response = await api.post(`/scribe/record/${sessionId}/validation-sessions/start`);
+  return response.data as RecordValidationSession;
+};
+
+export const syncRecordValidationSession = async (
+  sessionId: string,
+  validationSessionId: string,
+  duracionActivaMs: number,
+  estado: "activa" | "pausada" | "completada" = "activa"
+) => {
+  const response = await api.patch(
+    `/scribe/record/${sessionId}/validation-sessions/${validationSessionId}`,
+    { duracionActivaMs, estado }
+  );
+  return response.data as RecordValidationSession;
 };
 
 export const retryMedicalRecordSection = async (

@@ -30,6 +30,24 @@ const reviewedSection: SectionMetaMap = {
 };
 
 describe("MedicalRecordForm validation state", () => {
+  it("muestra por separado los tiempos de edición y validación", () => {
+    render(
+      <MedicalRecordForm
+        formData={formData}
+        onChange={vi.fn()}
+        editElapsedMs={65_000}
+        isEditTiming={false}
+        validationElapsedMs={125_000}
+        isValidationTiming
+        hasValidationStarted
+      />
+    );
+
+    expect(screen.getByText(/Edición pausada 01:05/)).toBeInTheDocument();
+    expect(screen.getByText(/Validando 02:05/)).toBeInTheDocument();
+    expect(screen.queryByText(/Tiempo ESSI/i)).not.toBeInTheDocument();
+  });
+
   it("muestra una sección revisada como Validado y evita validarla otra vez", () => {
     render(
       <MedicalRecordForm
