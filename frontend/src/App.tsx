@@ -12,6 +12,7 @@ import { PrivateRoute } from "./components/auth/PrivateRoute";
 import { RoleRoute } from "./components/auth/RoleRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { UnsavedRecordProvider } from "./contexts/UnsavedRecordContext";
 
 // Lazy load pages for better performance
 // This reduces initial bundle size by code-splitting pages
@@ -63,7 +64,8 @@ const App = () => {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <React.StrictMode>
+        <UnsavedRecordProvider>
+          <React.StrictMode>
           <HelmetProvider>
             <Helmet>
               <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -102,7 +104,8 @@ const App = () => {
               </QueryClientProvider>
             </ThemeProvider>
           </HelmetProvider>
-        </React.StrictMode>
+          </React.StrictMode>
+        </UnsavedRecordProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

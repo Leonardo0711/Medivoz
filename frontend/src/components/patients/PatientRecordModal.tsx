@@ -11,7 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Brain, Calendar, Clock, FileSearch, FileText, History, Loader2, StickyNote } from "lucide-react";
+import { AlertCircle, AlertTriangle, Brain, Calendar, Clock, FileSearch, FileText, History, Loader2, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import api, { getApiErrorStatus } from "@/lib/api";
@@ -66,6 +66,18 @@ const fieldOrder: Array<{ key: keyof MedicalRecordFormData; label: string; icon:
 export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecordModalProps) {
   const [record, setRecord] = useState<RecordRow | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const pendingDetails = [
+    Number(patient?.seccionesPendientesIa || 0) > 0
+      ? `${Number(patient?.seccionesPendientesIa)} secciones IA por validar`
+      : null,
+    Number(patient?.resumenesPendientes || 0) > 0
+      ? `${Number(patient?.resumenesPendientes)} resúmenes pendientes`
+      : null,
+    Number(patient?.notasEssiPendientes || 0) > 0
+      ? `${Number(patient?.notasEssiPendientes)} nota ESSI pendiente`
+      : null,
+  ].filter(Boolean) as string[];
+  const isPending = Number(patient?.consultasPendientesValidacion || 0) > 0;
 
   useEffect(() => {
     if (!open || !patient?.id) {
@@ -196,16 +208,24 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
               </DialogDescription>
             </div>
 
-            {record?.updated_at && (
-              <Badge variant="outline" className="w-fit gap-1.5 bg-background">
-                <Calendar className="h-3.5 w-3.5 text-primary" />
-                {new Date(record.updated_at).toLocaleDateString("es-PE", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </Badge>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {isPending && (
+                <Badge className="gap-1.5 border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Anamnesis pendiente
+                </Badge>
+              )}
+              {record?.updated_at && (
+                <Badge variant="outline" className="w-fit gap-1.5 bg-background">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  {new Date(record.updated_at).toLocaleDateString("es-PE", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </Badge>
+              )}
+            </div>
           </div>
         </DialogHeader>
 
@@ -218,6 +238,14 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
               </div>
             ) : record ? (
               <div className="grid gap-6">
+                {isPending && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <p className="font-semibold">Esta ficha todavía requiere revisión del médico.</p>
+                    {pendingDetails.length > 0 && (
+                      <p className="mt-1 text-xs leading-5">{pendingDetails.join(" · ")}</p>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="space-y-6 lg:col-span-2">
                     {renderField(fieldOrder[0].label, record[fieldOrder[0].key] ?? "", fieldOrder[0].icon)}
@@ -258,7 +286,9 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
           {patient?.id && (
             <Button asChild>
-              <Link to={`/session?patientId=${patient.id}`}>Abrir anamnesis</Link>
+              <Link to={`/session?patientId=${patient.id}`}>
+                {isPending ? "Continuar validación" : record ? "Editar anamnesis" : "Iniciar anamnesis"}
+              </Link>
             </Button>
           )}
         </DialogFooter>

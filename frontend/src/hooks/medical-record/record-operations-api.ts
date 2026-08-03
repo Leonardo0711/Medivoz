@@ -97,7 +97,11 @@ export const fetchExistingRecord = async (sessionId: string, _patientId: string)
       resumenActual: data?.resumenActual || data?.resumenSugeridoIa || composedSummary || "",
       notaEssi: data?.notaEssi || "",
     };
-    return { formData, sectionMeta, recordSummary };
+    const recordState = {
+      estado: String(data?.estado || "vacia"),
+      estaFinalizada: Boolean(data?.estaFinalizada),
+    };
+    return { formData, sectionMeta, recordSummary, recordState };
   } catch (error: unknown) {
     if (getApiErrorStatus(error) === 404) return null;
     logger.error("Error fetching existing record:", error);

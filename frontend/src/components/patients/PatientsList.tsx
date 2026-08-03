@@ -153,16 +153,21 @@ export function PatientsList({
                 <TableCell>
                   {Number(patient.consultasPendientesValidacion || 0) > 0 ? (
                     <div className="space-y-1.5">
-                      <Link
-                        to={`/session?patientId=${patient.id}`}
+                      <button
+                        type="button"
                         title={getPendingValidationLabel(patient)}
                         className="inline-flex"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onViewRecord(patient);
+                        }}
                       >
                         <Badge className="gap-1.5 border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           Anamnesis pendiente
                         </Badge>
-                      </Link>
+                      </button>
                       <p className="max-w-[220px] text-[11px] leading-4 text-muted-foreground">
                         {getPendingValidationLabel(patient)}
                       </p>

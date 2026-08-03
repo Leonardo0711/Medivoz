@@ -28,6 +28,8 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   const [showFullTranscription, setShowFullTranscription] = useState(false);
   const [patientData, setPatientData] = useState<PatientData | null>(null);
   const [recordExists, setRecordExists] = useState(false);
+  const [recordFinalized, setRecordFinalized] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [sectionMeta, setSectionMeta] = useState<SectionMetaMap>({});
   const [summaryData, setSummaryData] = useState<
     Partial<Record<keyof MedicalRecordFormData, string>>
@@ -61,6 +63,10 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   });
   const dirtyFieldsRef = useRef<Set<keyof MedicalRecordFormData>>(new Set());
   const dirtyRecordSummaryRef = useRef({ resumenActual: false, notaEssi: false });
+  const markRecordChanged = useCallback(() => {
+    setHasUnsavedChanges(true);
+    setRecordFinalized(false);
+  }, []);
 
   const loadTranscription = useCallback(async () => {
     if (!sessionId) return "";
@@ -107,6 +113,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
             return next;
           });
           setSectionMeta(recordData.sectionMeta);
+          setRecordFinalized(recordData.recordState.estaFinalizada);
           setRecordSummary((previous) => ({
             resumenSugeridoIa: recordData.recordSummary.resumenSugeridoIa,
             resumenActual: dirtyRecordSummaryRef.current.resumenActual
@@ -132,6 +139,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
           });
         }
       } else {
+        setRecordFinalized(false);
         logger.log("No existing record found, will create new when saved");
       }
     } catch (error) {
@@ -158,6 +166,8 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   useEffect(() => {
     dirtyFieldsRef.current.clear();
     dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
+    setHasUnsavedChanges(false);
+    setRecordFinalized(false);
     const loadAllData = async () => {
       setIsLoading(true);
       try {
@@ -195,10 +205,11 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
       const { name, value } = e.target;
       const field = name as keyof MedicalRecordFormData;
       dirtyFieldsRef.current.add(field);
+      markRecordChanged();
       markEditActivity(field);
       setFormData((prev) => ({ ...prev, [name]: value }));
     },
-    [markEditActivity]
+    [markEditActivity, markRecordChanged]
   );
 
   const handleAcceptSuggestion = useCallback(
@@ -234,6 +245,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         sesionEdicionId: timer.editSessionId || undefined,
       });
       dirtyFieldsRef.current.delete(field);
+      setRecordFinalized(false);
       clearFieldDuration(field);
       logger.info("Medical record section accepted", {
         sessionId,
@@ -273,6 +285,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     async (field: keyof MedicalRecordFormData) => {
       if (!sessionId) return false;
       await reviewMedicalRecordSection(sessionId, field, "reject");
+      setRecordFinalized(false);
       logger.info("Medical record section rejected", { sessionId, field });
       setSectionMeta((prev) => ({
         ...prev,
@@ -293,30 +306,37 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   const handleSummaryChange = useCallback(
     (field: keyof MedicalRecordFormData, value: string) => {
       markEditActivity(field);
+      markRecordChanged();
       setSummaryData((prev) => ({ ...prev, [field]: value }));
     },
-    [markEditActivity]
+    [markEditActivity, markRecordChanged]
   );
 
   const handleRecordSummaryChange = useCallback(
     (value: string) => {
       dirtyRecordSummaryRef.current.resumenActual = true;
+      markRecordChanged();
       markEditActivity(null);
       setRecordSummary((prev) => ({
         ...prev,
         resumenActual: value,
       }));
     },
-    [markEditActivity]
+    [markEditActivity, markRecordChanged]
   );
 
-  const handleEssiNoteChange = useCallback((value: string) => {
-    dirtyRecordSummaryRef.current.notaEssi = true;
-    setRecordSummary((prev) => ({
-      ...prev,
-      notaEssi: value,
-    }));
-  }, []);
+  const handleEssiNoteChange = useCallback(
+    (value: string) => {
+      dirtyRecordSummaryRef.current.notaEssi = true;
+      markRecordChanged();
+      markEditActivity(null);
+      setRecordSummary((prev) => ({
+        ...prev,
+        notaEssi: value,
+      }));
+    },
+    [markEditActivity, markRecordChanged]
+  );
 
   const refreshValidation = useCallback(async () => {
     if (!sessionId) return;
@@ -347,6 +367,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     async (field: keyof MedicalRecordFormData) => {
       if (!sessionId) return false;
       await reviewMedicalRecordSection(sessionId, field, "block");
+      setRecordFinalized(false);
       logger.info("Medical record section blocked", { sessionId, field });
       setSectionMeta((prev) => ({
         ...prev,
@@ -369,6 +390,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
           state: result?.job?.state,
         });
         toast.info("IA reintentando esta sección. Actualizaré la ficha en unos segundos.");
+        setRecordFinalized(false);
         window.setTimeout(() => {
           void loadRecordData();
           void refreshValidation();
@@ -413,6 +435,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
                 origenDato: null,
               },
         }));
+        setRecordFinalized(false);
         logger.info("Medical record section refined", {
           sessionId,
           field,
@@ -453,6 +476,9 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
       if (saved) {
         dirtyFieldsRef.current.clear();
         dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
+        setRecordExists(true);
+        setHasUnsavedChanges(false);
+        setRecordFinalized(true);
         logger.info("Medical record saved from hook", {
           sessionId,
           sectionCount: Object.values(formData).filter((value) => value.trim()).length,
@@ -517,6 +543,8 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     handleRetrySection,
     handleRefineSection,
     recordExists,
+    recordFinalized,
+    hasUnsavedChanges,
     refreshTranscription,
     refreshRecordData: loadRecordData,
     editElapsedMs,

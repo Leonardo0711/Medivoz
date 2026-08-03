@@ -64,6 +64,22 @@ const compactSummaryParts = (parts: Array<string | null | undefined>) =>
     .trim();
 
 export class ScribeService {
+  private async markRecordInReview(fichaId: string, executor: DbExecutor = db) {
+    const now = new Date();
+    const [updated] = await executor
+      .update(medicalRecords)
+      .set({
+        estado: "en_revision",
+        estaFinalizada: false,
+        finalizadaEn: null,
+        updatedAt: now,
+      })
+      .where(eq(medicalRecords.id, fichaId))
+      .returning();
+
+    return updated;
+  }
+
   async getOrCreateRecord(
     consultaId: string,
     _data?: { pacienteId?: string | null; doctorId?: string | null },
@@ -298,6 +314,18 @@ export class ScribeService {
         );
       }
 
+      const now = new Date();
+      const [finalizedRecord] = await tx
+        .update(medicalRecords)
+        .set({
+          estado: "finalizada",
+          estaFinalizada: true,
+          finalizadaEn: now,
+          updatedAt: now,
+        })
+        .where(eq(medicalRecords.id, record.id))
+        .returning();
+
       await this.createRecordVersion(
         record.id,
         {
@@ -309,7 +337,6 @@ export class ScribeService {
       );
 
       if (input.sesionEdicionId) {
-        const now = new Date();
         await tx
           .update(medicalRecordEditSessions)
           .set({
@@ -332,8 +359,9 @@ export class ScribeService {
         consultaId: input.consultaId,
         fichaId: record.id,
         updatedSections: results.length,
+        finalized: true,
       });
-      return { record, results };
+      return { record: finalizedRecord || record, results };
     });
   }
 
@@ -577,6 +605,16 @@ export class ScribeService {
           .returning()
       : await tx.insert(medicalRecordSections).values(values).returning();
 
+    await tx
+      .update(medicalRecords)
+      .set({
+        estado: "borrador_ia",
+        estaFinalizada: false,
+        finalizadaEn: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(medicalRecords.id, fichaId));
+
     logger.info("[scribe] ia-suggestion:stored", {
       fichaId,
       sectionId: section.id,
@@ -618,6 +656,7 @@ export class ScribeService {
     if (!consultation) return null;
 
     const record = await this.getOrCreateRecord(consultaId, { doctorId });
+    await this.markRecordInReview(record.id);
     const [active] = await db
       .select()
       .from(medicalRecordEditSessions)
@@ -799,6 +838,7 @@ export class ScribeService {
           },
           tx
         );
+        await this.markRecordInReview(record.id, tx);
         await this.createRecordVersion(
           record.id,
           {
@@ -868,6 +908,7 @@ export class ScribeService {
           sesionEdicionId: options?.sesionEdicionId ?? null,
           confianza: section.confianza,
         });
+        await this.markRecordInReview(record.id, tx);
         await this.createRecordVersion(
           record.id,
           {
@@ -923,6 +964,7 @@ export class ScribeService {
           sesionEdicionId: options?.sesionEdicionId ?? null,
           confianza: section.confianza,
         });
+        await this.markRecordInReview(record.id, tx);
         await this.createRecordVersion(
           record.id,
           {
@@ -973,6 +1015,7 @@ export class ScribeService {
         sesionEdicionId: options?.sesionEdicionId ?? null,
         confianza: section.confianza,
       });
+      await this.markRecordInReview(record.id, tx);
       await this.createRecordVersion(
         record.id,
         {

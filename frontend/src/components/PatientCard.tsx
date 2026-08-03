@@ -87,8 +87,9 @@ export const PatientCard = memo(function PatientCard({
         </div>
 
         {pendingValidationCount > 0 && (
-          <Link
-            to={`/session?patientId=${id}`}
+          <button
+            type="button"
+            onClick={onViewRecord}
             className="flex w-full items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-100"
           >
             <span className="flex items-center gap-2">
@@ -96,7 +97,7 @@ export const PatientCard = memo(function PatientCard({
               Anamnesis pendiente
             </span>
             <span className="text-[11px]">Revisar</span>
-          </Link>
+          </button>
         )}
         {pendingValidationCount > 0 && pendingValidationLabel && (
           <p className="w-full text-xs leading-5 text-muted-foreground">{pendingValidationLabel}</p>

@@ -15,6 +15,7 @@ import { Patient } from "@/components/patients/PatientDialogTypes";
 import { useMedicalRecord } from "@/hooks/medical-record/use-medical-record";
 import { logger } from "@/utils/logger";
 import api from "@/lib/api";
+import { useUnsavedRecordGuard } from "@/contexts/UnsavedRecordContext";
 
 type AnamnesisPhase = {
   estadoAnamnesis?: string | null;
@@ -41,6 +42,7 @@ export default function Session() {
   const recordRefreshInFlightRef = useRef(false);
   const structuringTimeoutRef = useRef<number | null>(null);
   const [searchParams] = useSearchParams();
+  const { configureGuard, requestAction } = useUnsavedRecordGuard();
   const patientId = selectedPatient?.id || null;
 
   const {
@@ -66,11 +68,26 @@ export default function Session() {
     handleRetrySection,
     handleRefineSection,
     recordExists,
+    recordFinalized,
+    hasUnsavedChanges,
     refreshTranscription,
     refreshRecordData,
     editElapsedMs,
     isEditTiming,
   } = useMedicalRecord(currentSessionId, patientId);
+
+  const hasPendingRecordWork = Boolean(
+    currentSessionId && (hasUnsavedChanges || (recordExists && !recordFinalized))
+  );
+
+  useEffect(() => {
+    configureGuard({
+      active: hasPendingRecordWork,
+      isSaving,
+      onSave: handleSave,
+    });
+    return () => configureGuard(null);
+  }, [configureGuard, handleSave, hasPendingRecordWork, isSaving]);
 
   const loadPatient = useCallback(async (id: string) => {
     setCurrentSessionId(null);
@@ -115,6 +132,22 @@ export default function Session() {
   const handleSessionCreated = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
   }, []);
+
+  const handlePatientSelect = useCallback(
+    (patient: Patient | null) => {
+      requestAction(async () => {
+        if (patient?.id) {
+          await loadPatient(patient.id);
+          return;
+        }
+        setSelectedPatient(null);
+        setCurrentSessionId(null);
+        setTranscription("");
+        setAnamnesisPhase(null);
+      });
+    },
+    [loadPatient, requestAction]
+  );
 
   const handleTranscriptionReady = useCallback((text: string) => {
     setTranscription(text);
@@ -236,7 +269,7 @@ export default function Session() {
             <div className="flex min-h-0 flex-col gap-3 lg:col-span-4">
               <SessionPatientCard
                 selectedPatient={selectedPatient}
-                onPatientSelect={setSelectedPatient}
+                onPatientSelect={handlePatientSelect}
               />
 
               <SessionRecorder
@@ -264,11 +297,15 @@ export default function Session() {
                     </div>
                     {recordExists && (
                       <Badge
-                        variant="secondary"
-                        className="w-fit border-amber-200 bg-amber-100 text-amber-800"
+                        variant="outline"
+                        className={
+                          recordFinalized
+                            ? "w-fit border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "w-fit border-amber-200 bg-amber-50 text-amber-800"
+                        }
                       >
                         <Activity className="mr-1 h-3 w-3" />
-                        Ficha existente
+                        {recordFinalized ? "Ficha guardada" : "Borrador pendiente"}
                       </Badge>
                     )}
                     {isStructuringLive && (

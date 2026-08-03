@@ -22,6 +22,7 @@ import { logger } from "@/utils/logger";
 import { formatSpecialityName } from "@/utils/speciality";
 import { ThemeToggleButton } from "@/components/ThemeToggle";
 import { Logo } from "@/components/common/Logo";
+import { useUnsavedRecordGuard } from "@/contexts/UnsavedRecordContext";
 
 const DESKTOP_COLLAPSED_WIDTH = "4rem";
 const DESKTOP_EXPANDED_WIDTH = "15rem";
@@ -35,6 +36,7 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { requestAction } = useUnsavedRecordGuard();
   const { user, signOut } = useAuth();
 
   const navItems = useMemo(() => {
@@ -81,13 +83,15 @@ export function Sidebar() {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [isMobile]);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate("/");
-    } catch (error) {
-      logger.error("Error signing out:", error);
-    }
+  const handleSignOut = () => {
+    requestAction(async () => {
+      try {
+        await signOut();
+        navigate("/");
+      } catch (error) {
+        logger.error("Error signing out:", error);
+      }
+    });
   };
 
   const NavLink = ({
