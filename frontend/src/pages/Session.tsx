@@ -246,7 +246,7 @@ export default function Session() {
                     <div>
                       <CardTitle className="flex items-center gap-2 text-base">
                         <Activity className="h-4 w-4 text-primary" />
-                        Historia clinica electronica
+                        Historia clínica electrónica
                       </CardTitle>
                       <CardDescription className="mt-0.5 text-xs">
                         Documentación automática estructurada basada en la transcripción.

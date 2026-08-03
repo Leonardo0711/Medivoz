@@ -17,12 +17,12 @@ export const HeroSection = () => {
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
               <span className="bg-gradient-to-r from-medivoz-500 to-medivoz-700 bg-clip-text text-transparent">Medivoz</span>
               <span className="mt-2 block text-3xl font-medium text-foreground sm:text-4xl md:text-5xl">
-                Scribe inteligente para consulta clinica
+                Scribe inteligente para consulta clínica
               </span>
             </h1>
 
             <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground md:text-xl">
-              Transcribe, estructura y completa la historia clinica en tiempo real para que te enfoques en el paciente.
+              Transcribe, estructura y completa la historia clínica en tiempo real para que te enfoques en el paciente.
             </p>
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">

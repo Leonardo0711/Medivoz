@@ -3,7 +3,7 @@ export const ProcessSection = () => {
     "Selecciona un paciente desde tu panel",
     "Inicia la grabación de la consulta",
     "La transcripción aparece en tiempo real",
-    "La ficha clinica se completa con asistencia IA",
+    "La ficha clínica se completa con asistencia IA",
   ];
 
   return (

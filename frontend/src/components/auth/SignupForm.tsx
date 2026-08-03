@@ -59,7 +59,7 @@ export function SignupForm() {
     const hasSymbol = /[^A-Za-z0-9]/.test(password);
 
     if (hasMix && hasNumber && hasSymbol) {
-      return { message: "Contrasena solida.", state: "strong" as const };
+      return { message: "Contraseña sólida.", state: "strong" as const };
     }
 
     return {
@@ -109,7 +109,7 @@ export function SignupForm() {
   return (
     <AuthShell
       title="Crear cuenta profesional"
-      subtitle="Activa tu acceso clinico y empieza a documentar consultas con IA."
+      subtitle="Activa tu acceso clínico y empieza a documentar consultas con IA."
       footer={
         <>
           Ya tienes una cuenta?{" "}
@@ -185,7 +185,7 @@ export function SignupForm() {
 
         <div className="space-y-2">
           <Label htmlFor="password" className="text-sm font-medium">
-            Contrasena
+            Contraseña
           </Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

@@ -15,7 +15,7 @@ export const FeaturesSection = () => {
     },
     {
       title: "Conversacion organizada",
-      description: "Separa voces y contexto con marcas de tiempo para revision clinica.",
+      description: "Separa voces y contexto con marcas de tiempo para revisión clínica.",
       icon: FileText,
     },
     {
@@ -36,7 +36,7 @@ export const FeaturesSection = () => {
         <div className="mx-auto mb-12 max-w-2xl text-center">
           <h2 className="mb-3 text-3xl font-bold tracking-tight">Caracteristicas clave</h2>
           <p className="text-muted-foreground">
-            Herramientas pensadas para acelerar tu flujo clinico sin perder calidad documental.
+            Herramientas pensadas para acelerar tu flujo clínico sin perder calidad documental.
           </p>
         </div>
 

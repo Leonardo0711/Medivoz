@@ -3,7 +3,7 @@ import { CheckCircle } from "lucide-react";
 export const BenefitsSection = () => {
   const benefits = [
     "70% menos tiempo en documentacion",
-    "Reduccion de errores en historial clinico",
+    "Reducción de errores en historial clínico",
     "Mayor capacidad de consultas por jornada",
     "Menos tiempo operativo por consulta",
   ];

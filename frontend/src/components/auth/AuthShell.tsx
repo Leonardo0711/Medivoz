@@ -18,13 +18,13 @@ const highlights = [
   },
   {
     icon: FileText,
-    title: "Historia clinica asistida",
+    title: "Historia clínica asistida",
     description: "Completa secciones clave y deja al doctor siempre en control final.",
   },
   {
     icon: ShieldCheck,
     title: "Infraestructura aislada",
-    description: "Datos clinicos y sesiones protegidos en tu VPS dedicado.",
+    description: "Datos clínicos y sesiones protegidos en tu VPS dedicado.",
   },
 ];
 
@@ -40,10 +40,10 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
             <div className="max-w-md space-y-4">
               <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 <Stethoscope className="h-3.5 w-3.5" />
-                Plataforma Clinica
+                Plataforma Clínica
               </p>
               <h2 className="text-4xl font-semibold leading-tight text-foreground">
-                Interfaz clinica elegante, veloz y lista para consulta real.
+                Interfaz clínica elegante, veloz y lista para consulta real.
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Medivoz transforma la consulta en documentación útil y trazable, cuidando la experiencia del médico y del paciente.

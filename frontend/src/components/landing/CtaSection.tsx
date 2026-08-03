@@ -6,7 +6,7 @@ export const CtaSection = () => {
     <section className="relative overflow-hidden py-20">
       <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-secondary/10" />
       <div className="container relative z-10 mx-auto max-w-3xl text-center">
-        <h2 className="mb-4 text-4xl font-bold tracking-tight">Transforma tu practica clinica hoy</h2>
+        <h2 className="mb-4 text-4xl font-bold tracking-tight">Transforma tu práctica clínica hoy</h2>
         <p className="mb-8 text-lg leading-relaxed text-muted-foreground sm:text-xl">
           Únete a los equipos médicos que ya optimizan su consulta con un flujo digital moderno y trazable.
         </p>

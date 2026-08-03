@@ -35,11 +35,11 @@ export function LoginForm() {
       localStorage.setItem("user", JSON.stringify(user));
 
       setUser(user);
-      toast.success("Inicio de sesion exitoso");
+      toast.success("Inicio de sesión exitoso");
       navigate("/dashboard");
     } catch (err: unknown) {
       logger.error("Error during login:", err);
-      toast.error(getApiErrorMessage(err, "No se pudo iniciar sesion"));
+      toast.error(getApiErrorMessage(err, "No se pudo iniciar sesión"));
     } finally {
       setIsLoading(false);
     }
@@ -51,9 +51,9 @@ export function LoginForm() {
       subtitle="Accede a tu cuenta de Medivoz para continuar con tus consultas."
       footer={
         <>
-          No tienes una cuenta?{" "}
+          ¿No tienes una cuenta?{" "}
           <Link to="/signup" className="font-semibold text-primary hover:underline">
-            Registrate
+            Regístrate
           </Link>
         </>
       }
@@ -83,7 +83,7 @@ export function LoginForm() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password" className="text-sm font-medium">
-              Contrasena
+              Contraseña
             </Label>
           </div>
           <div className="relative">
