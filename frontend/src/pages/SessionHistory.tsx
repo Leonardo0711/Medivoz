@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -20,6 +20,8 @@ interface ConsultationApi {
   fecha: string | null;
   createdAt: string;
   transcripcion: string | null;
+  requiereValidacion?: boolean;
+  motivosPendientes?: string[];
 }
 
 interface PatientApi {
@@ -35,6 +37,8 @@ interface SessionWithPatient {
   codigo_sesion: string;
   created_at: string;
   transcripcion: string | null;
+  requiereValidacion: boolean;
+  motivosPendientes: string[];
   pacientes: {
     id: string;
     nombre: string;
@@ -46,6 +50,9 @@ interface SessionWithPatient {
 
 export default function SessionHistory() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const patientIdFilter = searchParams.get("patientId") || "";
+  const pendingValidationOnly = searchParams.get("pendingValidation") === "1";
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSession, setSelectedSession] = useState<SessionWithPatient | null>(null);
 
@@ -74,6 +81,8 @@ export default function SessionHistory() {
             codigo_sesion: consultation.codigoSesion,
             created_at: consultation.fecha || consultation.createdAt,
             transcripcion: consultation.transcripcion,
+            requiereValidacion: Boolean(consultation.requiereValidacion),
+            motivosPendientes: consultation.motivosPendientes || [],
             pacientes: {
               id: patient.id,
               nombre: patient.nombre,
@@ -91,10 +100,16 @@ export default function SessionHistory() {
 
   const filteredSessions = useMemo(() => {
     if (!sessions) return [];
-    if (!searchTerm) return sessions;
+    const patientSessions = patientIdFilter
+      ? sessions.filter((session) => session.pacientes.id === patientIdFilter)
+      : sessions;
+    const validationSessions = pendingValidationOnly
+      ? patientSessions.filter((session) => session.requiereValidacion)
+      : patientSessions;
+    if (!searchTerm) return validationSessions;
 
     const term = searchTerm.toLowerCase();
-    return sessions.filter((session) => {
+    return validationSessions.filter((session) => {
       return (
         session.pacientes?.nombre?.toLowerCase().includes(term) ||
         session.pacientes?.dni?.toLowerCase().includes(term) ||
@@ -102,7 +117,7 @@ export default function SessionHistory() {
         session.codigo_sesion?.toLowerCase().includes(term)
       );
     });
-  }, [sessions, searchTerm]);
+  }, [patientIdFilter, pendingValidationOnly, sessions, searchTerm]);
 
   return (
     <div className="flex min-h-screen overflow-hidden bg-background">
@@ -121,14 +136,26 @@ export default function SessionHistory() {
             </p>
           </header>
 
-          <div className="relative mb-6 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por paciente, DNI o código..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-11 pl-10"
-            />
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por paciente, DNI o código..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-11 pl-10"
+              />
+            </div>
+            {patientIdFilter && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                  Consultas pendientes de validación
+                </Badge>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/history">Ver todas</Link>
+                </Button>
+              </div>
+            )}
           </div>
 
           {isLoading ? (
@@ -142,16 +169,22 @@ export default function SessionHistory() {
                   <History className="h-7 w-7 text-muted-foreground/40" />
                 </div>
                 <h3 className="mb-1 text-base font-semibold">
-                  {searchTerm ? "Sin resultados" : "Sin sesiones aún"}
+                  {searchTerm
+                    ? "Sin resultados"
+                    : pendingValidationOnly
+                      ? "No hay consultas pendientes"
+                      : "Sin sesiones aún"}
                 </h3>
                 <p className="max-w-xs text-sm text-muted-foreground">
                   {searchTerm
-                    ? "Prueba con otra busqueda"
-                    : "Las sesiones apareceran aqui despues de grabar tu primera consulta"}
+                    ? "Prueba con otra búsqueda"
+                    : pendingValidationOnly
+                      ? "Todas las consultas de este paciente están completas o todavía no tienen una ficha para revisar."
+                      : "Las sesiones aparecerán aquí después de grabar tu primera consulta"}
                 </p>
-                {!searchTerm && (
+                {!searchTerm && !pendingValidationOnly && (
                   <Button asChild variant="outline" size="sm" className="mt-4">
-                    <Link to="/session">Iniciar nueva sesion</Link>
+                    <Link to="/session">Iniciar nueva sesión</Link>
                   </Button>
                 )}
               </CardContent>
@@ -177,6 +210,14 @@ export default function SessionHistory() {
                         <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
                           {session.codigo_sesion}
                         </Badge>
+                        {session.requiereValidacion && (
+                          <Badge
+                            title={session.motivosPendientes.join(" · ")}
+                            className="border border-amber-300 bg-amber-50 text-[10px] text-amber-800"
+                          >
+                            Pendiente de validar
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">

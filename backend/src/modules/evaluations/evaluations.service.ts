@@ -15,6 +15,8 @@ const toNumber = (value: string | number | null) => (value === null ? null : Num
 
 export class EvaluationsService {
   async listAvailableConsultations(evaluadorId: string) {
+    const outerConsultationId = sql.raw('"consultas"."id"');
+    const outerMedicalRecordId = sql.raw('"fichas_medicas"."id"');
     const rows = await db
       .select({
         consultaId: consultations.id,
@@ -24,63 +26,36 @@ export class EvaluationsService {
         createdAt: consultations.createdAt,
         notaMedivozAsistida: medicalRecords.resumenActual,
         notaEssi: medicalRecords.notaEssi,
-        seccionesTotales: sql<number>`(
-          select count(*)
-          from ${medicalRecordSections}
-          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
-        )`,
-        seccionesRevisadas: sql<number>`(
-          select count(*)
-          from ${medicalRecordSections}
-          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
-            and ${medicalRecordSections.estado} in ('revisada', 'bloqueada')
-        )`,
-        seccionesPendientesIa: sql<number>`(
-          select count(*)
-          from ${medicalRecordSections}
-          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
-            and ${medicalRecordSections.estado} = 'borrador_ia'
-        )`,
         evaluacionId: sql<string | null>`(
           select ${pdqi9Evaluations.id}
           from ${pdqi9Evaluations}
-          where ${pdqi9Evaluations.consultaId} = ${consultations.id}
+          where ${pdqi9Evaluations.consultaId} = ${outerConsultationId}
             and ${pdqi9Evaluations.evaluadorId} = ${evaluadorId}
           limit 1
         )`,
       })
       .from(consultations)
       .innerJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
+      .where(
+        sql`nullif(btrim(${medicalRecords.resumenActual}), '') is not null
+          and nullif(btrim(${medicalRecords.notaEssi}), '') is not null
+          and not exists (
+            select 1
+            from ${medicalRecordSections}
+            where ${medicalRecordSections.fichaId} = ${outerMedicalRecordId}
+              and ${medicalRecordSections.estado} = 'borrador_ia'
+          )`
+      )
       .orderBy(desc(consultations.createdAt));
 
-    return rows.map((row) => {
-      const notaMedivozCaracteres = (row.notaMedivozAsistida || "").trim().length;
-      const notaEssiCaracteres = (row.notaEssi || "").trim().length;
-      const seccionesPendientesIa = Number(row.seccionesPendientesIa || 0);
-      const motivosPendientes: string[] = [];
-
-      if (seccionesPendientesIa > 0) {
-        motivosPendientes.push(
-          `${seccionesPendientesIa} ${seccionesPendientesIa === 1 ? "sección" : "secciones"} con IA sin validar`
-        );
-      }
-      if (!notaMedivozCaracteres) motivosPendientes.push("Falta confirmar el resumen Medivoz");
-      if (!notaEssiCaracteres) motivosPendientes.push("Falta pegar la nota ESSI");
-
-      const estaLista = motivosPendientes.length === 0;
-      return {
-        consultaId: row.consultaId,
-        codigoConsulta: row.codigoConsulta,
-        fecha: row.fecha || row.createdAt,
-        notaMedivozCaracteres,
-        notaEssiCaracteres,
-        seccionesTotales: Number(row.seccionesTotales || 0),
-        seccionesRevisadas: Number(row.seccionesRevisadas || 0),
-        seccionesPendientesIa,
-        motivosPendientes,
-        estado: estaLista ? (row.evaluacionId ? "evaluada" : "lista") : "pendiente_validacion",
-      };
-    });
+    return rows.map((row) => ({
+      consultaId: row.consultaId,
+      codigoConsulta: row.codigoConsulta,
+      fecha: row.fecha || row.createdAt,
+      notaMedivozCaracteres: (row.notaMedivozAsistida || "").trim().length,
+      notaEssiCaracteres: (row.notaEssi || "").trim().length,
+      evaluada: Boolean(row.evaluacionId),
+    }));
   }
 
   async getContext(consultaId: string, evaluadorId: string) {

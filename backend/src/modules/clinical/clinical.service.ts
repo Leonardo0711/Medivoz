@@ -1,7 +1,8 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { profiles } from "../../db/schema/auth.js";
 import { anamnesisTemplates, consultations, patients, temporalAudios } from "../../db/schema/clinical.js";
+import { medicalRecords, medicalRecordSections } from "../../db/schema/scribe.js";
 import { logger } from "../../core/utils/logger.js";
 import { audioTemporalService } from "../scribe/audio-temporal.service.js";
 
@@ -24,6 +25,7 @@ export class ClinicalService {
   async listPatients(doctorId: string, query?: unknown) {
     const trimmedQuery = normalizeQueryText(query);
     const conditions = [eq(patients.doctorId, doctorId)];
+    const outerPatientId = sql.raw('"pacientes"."id"');
 
     if (trimmedQuery) {
       conditions.push(
@@ -35,10 +37,96 @@ export class ClinicalService {
       );
     }
 
-    return await db.query.patients.findMany({
-      where: and(...conditions),
-      orderBy: [desc(patients.createdAt)],
-    });
+    const rows = await db
+      .select({
+        id: patients.id,
+        doctorId: patients.doctorId,
+        codigoPaciente: patients.codigoPaciente,
+        nombre: patients.nombre,
+        dni: patients.dni,
+        edad: patients.edad,
+        ocupacion: patients.ocupacion,
+        procedencia: patients.procedencia,
+        diagnostico: patients.diagnostico,
+        ultimaVisita: patients.ultimaVisita,
+        createdAt: patients.createdAt,
+        updatedAt: patients.updatedAt,
+        consultasPendientesValidacion: sql<number>`(
+          select count(*)
+          from ${consultations} consulta_pendiente
+          join ${medicalRecords} ficha_pendiente
+            on ficha_pendiente.consulta_id = consulta_pendiente.id
+          where consulta_pendiente.paciente_id = ${outerPatientId}
+            and consulta_pendiente.doctor_id = ${doctorId}
+            and (
+              nullif(btrim(ficha_pendiente.resumen_actual), '') is not null
+              or nullif(btrim(ficha_pendiente.resumen_sugerido_ia), '') is not null
+              or nullif(btrim(ficha_pendiente.nota_essi), '') is not null
+              or exists (
+                select 1 from ${medicalRecordSections} seccion_con_datos
+                where seccion_con_datos.ficha_medica_id = ficha_pendiente.id
+                  and (
+                    nullif(btrim(seccion_con_datos.texto_actual), '') is not null
+                    or nullif(btrim(seccion_con_datos.texto_sugerido_ia), '') is not null
+                  )
+              )
+            )
+            and (
+              nullif(btrim(ficha_pendiente.resumen_actual), '') is null
+              or nullif(btrim(ficha_pendiente.nota_essi), '') is null
+              or exists (
+                select 1 from ${medicalRecordSections} seccion_pendiente
+                where seccion_pendiente.ficha_medica_id = ficha_pendiente.id
+                  and seccion_pendiente.estado = 'borrador_ia'
+              )
+            )
+        )`,
+        seccionesPendientesIa: sql<number>`(
+          select count(*)
+          from ${consultations} consulta_seccion
+          join ${medicalRecords} ficha_seccion on ficha_seccion.consulta_id = consulta_seccion.id
+          join ${medicalRecordSections} seccion_pendiente on seccion_pendiente.ficha_medica_id = ficha_seccion.id
+          where consulta_seccion.paciente_id = ${outerPatientId}
+            and consulta_seccion.doctor_id = ${doctorId}
+            and seccion_pendiente.estado = 'borrador_ia'
+        )`,
+        resumenesPendientes: sql<number>`(
+          select count(*)
+          from ${consultations} consulta_resumen
+          join ${medicalRecords} ficha_resumen on ficha_resumen.consulta_id = consulta_resumen.id
+          where consulta_resumen.paciente_id = ${outerPatientId}
+            and consulta_resumen.doctor_id = ${doctorId}
+            and nullif(btrim(ficha_resumen.resumen_actual), '') is null
+            and exists (
+              select 1 from ${medicalRecordSections} seccion_resumen
+              where seccion_resumen.ficha_medica_id = ficha_resumen.id
+                and (
+                  nullif(btrim(seccion_resumen.texto_actual), '') is not null
+                  or nullif(btrim(seccion_resumen.texto_sugerido_ia), '') is not null
+                )
+            )
+        )`,
+        notasEssiPendientes: sql<number>`(
+          select count(*)
+          from ${consultations} consulta_essi
+          join ${medicalRecords} ficha_essi on ficha_essi.consulta_id = consulta_essi.id
+          where consulta_essi.paciente_id = ${outerPatientId}
+            and consulta_essi.doctor_id = ${doctorId}
+            and nullif(btrim(ficha_essi.resumen_actual), '') is not null
+            and nullif(btrim(ficha_essi.nota_essi), '') is null
+        )`,
+      })
+      .from(patients)
+      .where(and(...conditions))
+      .orderBy(desc(patients.createdAt));
+
+    return rows.map((row) => ({
+      ...row,
+      consultasPendientesValidacion: Number(row.consultasPendientesValidacion || 0),
+      seccionesPendientesIa: Number(row.seccionesPendientesIa || 0),
+      resumenesPendientes: Number(row.resumenesPendientes || 0),
+      notasEssiPendientes: Number(row.notasEssiPendientes || 0),
+    }));
   }
 
   async getPatientById(id: string, doctorId: string) {
@@ -130,11 +218,80 @@ export class ClinicalService {
   async listConsultations(doctorId: string, pacienteId?: unknown) {
     const conditions = [eq(consultations.doctorId, doctorId)];
     const safePacienteId = normalizeQueryText(pacienteId);
+    const outerMedicalRecordId = sql.raw('"fichas_medicas"."id"');
     if (safePacienteId) conditions.push(eq(consultations.pacienteId, safePacienteId));
 
-    return await db.query.consultations.findMany({
-      where: and(...conditions),
-      orderBy: [desc(consultations.fecha)],
+    const rows = await db
+      .select({
+        id: consultations.id,
+        doctorId: consultations.doctorId,
+        pacienteId: consultations.pacienteId,
+        plantillaAnamnesisId: consultations.plantillaAnamnesisId,
+        codigoSesion: consultations.codigoSesion,
+        tipoConsulta: consultations.tipoConsulta,
+        estado: consultations.estado,
+        fecha: consultations.fecha,
+        inicioReal: consultations.inicioReal,
+        finReal: consultations.finReal,
+        transcripcion: consultations.transcripcion,
+        versionTranscripcion: consultations.versionTranscripcion,
+        estadoAnamnesis: consultations.estadoAnamnesis,
+        segmentoInicioAnamnesis: consultations.segmentoInicioAnamnesis,
+        segmentoFinAnamnesis: consultations.segmentoFinAnamnesis,
+        confianzaCierreAnamnesis: consultations.confianzaCierreAnamnesis,
+        motivoCierreAnamnesis: consultations.motivoCierreAnamnesis,
+        anamnesisDetectadaEn: consultations.anamnesisDetectadaEn,
+        createdAt: consultations.createdAt,
+        updatedAt: consultations.updatedAt,
+        fichaId: medicalRecords.id,
+        resumenActual: medicalRecords.resumenActual,
+        resumenSugeridoIa: medicalRecords.resumenSugeridoIa,
+        notaEssi: medicalRecords.notaEssi,
+        seccionesConDatos: sql<number>`(
+          select count(*) from ${medicalRecordSections} seccion_con_datos
+          where seccion_con_datos.ficha_medica_id = ${outerMedicalRecordId}
+            and (
+              nullif(btrim(seccion_con_datos.texto_actual), '') is not null
+              or nullif(btrim(seccion_con_datos.texto_sugerido_ia), '') is not null
+            )
+        )`,
+        seccionesPendientesIa: sql<number>`(
+          select count(*) from ${medicalRecordSections} seccion_pendiente
+          where seccion_pendiente.ficha_medica_id = ${outerMedicalRecordId}
+            and seccion_pendiente.estado = 'borrador_ia'
+        )`,
+      })
+      .from(consultations)
+      .leftJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
+      .where(and(...conditions))
+      .orderBy(desc(consultations.fecha));
+
+    return rows.map(({ fichaId, resumenActual, resumenSugeridoIa, notaEssi, ...row }) => {
+      const seccionesConDatos = Number(row.seccionesConDatos || 0);
+      const seccionesPendientesIa = Number(row.seccionesPendientesIa || 0);
+      const tieneResumen = Boolean(resumenActual?.trim());
+      const tieneNotaEssi = Boolean(notaEssi?.trim());
+      const tieneDatosFicha = Boolean(
+        fichaId &&
+          (seccionesConDatos > 0 || resumenActual?.trim() || resumenSugeridoIa?.trim() || notaEssi?.trim())
+      );
+      const motivosPendientes: string[] = [];
+
+      if (tieneDatosFicha && seccionesPendientesIa > 0) {
+        motivosPendientes.push(
+          `${seccionesPendientesIa} ${seccionesPendientesIa === 1 ? "sección IA" : "secciones IA"} sin validar`
+        );
+      }
+      if (tieneDatosFicha && !tieneResumen) motivosPendientes.push("Falta confirmar el resumen Medivoz");
+      if (tieneDatosFicha && !tieneNotaEssi) motivosPendientes.push("Falta pegar la nota ESSI");
+
+      return {
+        ...row,
+        seccionesConDatos,
+        seccionesPendientesIa,
+        requiereValidacion: motivosPendientes.length > 0,
+        motivosPendientes,
+      };
     });
   }
 

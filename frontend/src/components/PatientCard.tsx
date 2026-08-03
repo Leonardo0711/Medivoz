@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Edit, Trash } from "lucide-react";
+import { AlertTriangle, Calendar, Edit, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
@@ -10,6 +10,8 @@ interface PatientCardProps {
   age: number;
   lastVisit: string;
   diagnosis?: string;
+  pendingValidationCount?: number;
+  pendingValidationLabel?: string;
   onEdit?: () => void;
   onDelete?: () => void;
   onViewRecord?: () => void;
@@ -21,6 +23,8 @@ export const PatientCard = memo(function PatientCard({
   age,
   lastVisit,
   diagnosis,
+  pendingValidationCount = 0,
+  pendingValidationLabel,
   onEdit,
   onDelete,
   onViewRecord,
@@ -39,7 +43,7 @@ export const PatientCard = memo(function PatientCard({
             </div>
             {diagnosis && (
               <div className="mt-2 text-sm">
-                <span className="font-medium">Diagnostico:</span> {diagnosis}
+                <span className="font-medium">Diagnóstico:</span> {diagnosis}
               </div>
             )}
           </div>
@@ -50,7 +54,7 @@ export const PatientCard = memo(function PatientCard({
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center text-xs text-muted-foreground">
             <Calendar className="mr-1 h-3 w-3" />
-            Ultima visita: {lastVisit}
+            Última visita: {lastVisit}
           </div>
           <div className="flex items-center gap-2">
             {onEdit && (
@@ -82,9 +86,25 @@ export const PatientCard = memo(function PatientCard({
           </div>
         </div>
 
+        {pendingValidationCount > 0 && (
+          <Link
+            to={`/history?patientId=${id}&pendingValidation=1`}
+            className="flex w-full items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-100"
+          >
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              {pendingValidationCount} {pendingValidationCount === 1 ? "consulta pendiente" : "consultas pendientes"}
+            </span>
+            <span className="text-[11px]">Revisar</span>
+          </Link>
+        )}
+        {pendingValidationCount > 0 && pendingValidationLabel && (
+          <p className="w-full text-xs leading-5 text-muted-foreground">{pendingValidationLabel}</p>
+        )}
+
         <Link to={`/session?patientId=${id}`} className="w-full">
           <Button size="sm" variant="outline" className="w-full">
-            Nueva sesion
+            Nueva sesión
           </Button>
         </Link>
 

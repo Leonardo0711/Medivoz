@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Edit, Eye, Loader2, Trash, User } from "lucide-react";
+import { AlertTriangle, CircleCheck, Edit, Eye, Loader2, Trash, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +16,18 @@ interface PatientsListProps {
   onDelete: (patient: Patient) => void;
   onViewRecord: (patient: Patient) => void;
 }
+
+const getPendingValidationLabel = (patient: Patient) => {
+  const details: string[] = [];
+  const aiSections = Number(patient.seccionesPendientesIa || 0);
+  const summaries = Number(patient.resumenesPendientes || 0);
+  const essiNotes = Number(patient.notasEssiPendientes || 0);
+
+  if (aiSections) details.push(`${aiSections} ${aiSections === 1 ? "sección IA" : "secciones IA"}`);
+  if (summaries) details.push(`${summaries} ${summaries === 1 ? "resumen" : "resúmenes"}`);
+  if (essiNotes) details.push(`${essiNotes} ${essiNotes === 1 ? "nota ESSI" : "notas ESSI"}`);
+  return details.join(" · ");
+};
 
 export function PatientsList({
   patients,
@@ -82,8 +94,10 @@ export function PatientsList({
             id={patient.id}
             name={patient.nombre}
             age={patient.edad || 0}
-            lastVisit={patient.ultima_visita ? formatDate(patient.ultima_visita) : "Sin visitas"}
+            lastVisit={patient.ultimaVisita || patient.ultima_visita ? formatDate(patient.ultimaVisita || patient.ultima_visita || null) : "Sin visitas"}
             diagnosis={patient.diagnostico || undefined}
+            pendingValidationCount={Number(patient.consultasPendientesValidacion || 0)}
+            pendingValidationLabel={getPendingValidationLabel(patient)}
             onEdit={() => onEdit(patient)}
             onDelete={() => onDelete(patient)}
             onViewRecord={() => onViewRecord(patient)}
@@ -95,10 +109,11 @@ export function PatientsList({
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[250px] font-semibold">Paciente</TableHead>
+              <TableHead className="w-[220px] font-semibold">Paciente</TableHead>
               <TableHead className="font-semibold">DNI</TableHead>
               <TableHead className="font-semibold">Edad</TableHead>
-              <TableHead className="font-semibold">Ultima visita</TableHead>
+              <TableHead className="font-semibold">Última visita</TableHead>
+              <TableHead className="min-w-[190px] font-semibold">Validación</TableHead>
               <TableHead className="font-semibold">Ficha médica</TableHead>
               <TableHead className="pr-6 text-right font-semibold">Acciones</TableHead>
             </TableRow>
@@ -131,7 +146,32 @@ export function PatientsList({
                   )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {patient.ultima_visita ? formatDate(patient.ultima_visita) : "-"}
+                  {patient.ultimaVisita || patient.ultima_visita
+                    ? formatDate(patient.ultimaVisita || patient.ultima_visita || null)
+                    : "-"}
+                </TableCell>
+                <TableCell>
+                  {Number(patient.consultasPendientesValidacion || 0) > 0 ? (
+                    <div className="space-y-1.5">
+                      <Link
+                        to={`/history?patientId=${patient.id}&pendingValidation=1`}
+                        title={getPendingValidationLabel(patient)}
+                        className="inline-flex"
+                      >
+                        <Badge className="gap-1.5 border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {patient.consultasPendientesValidacion} {patient.consultasPendientesValidacion === 1 ? "pendiente" : "pendientes"}
+                        </Badge>
+                      </Link>
+                      <p className="max-w-[220px] text-[11px] leading-4 text-muted-foreground">
+                        {getPendingValidationLabel(patient)}
+                      </p>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
+                      <CircleCheck className="h-3.5 w-3.5" /> Al día
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Button

@@ -19,7 +19,12 @@ export interface Patient {
   ocupacion: string | null;
   procedencia: string | null;
   diagnostico: string | null;
+  ultimaVisita?: string | null;
   ultima_visita?: string | null; // Added to fix type compatibility
+  consultasPendientesValidacion?: number;
+  seccionesPendientesIa?: number;
+  resumenesPendientes?: number;
+  notasEssiPendientes?: number;
 }
 
 export type PatientDialogMode = 'create' | 'edit';
