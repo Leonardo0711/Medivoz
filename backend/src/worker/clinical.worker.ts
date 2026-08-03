@@ -594,22 +594,38 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
       const response = await openai.chat.completions.create({
         model,
         temperature: numericTemperature,
-        max_tokens: 650,
+        max_tokens: explicitSection ? 800 : 1800,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
 
       const rawContent = response.choices[0]?.message?.content || "{}";
-      const extractedData = JSON.parse(rawContent);
-      const phaseDetection = parseAnamnesisPhaseDetection(extractedData?._meta_anamnesis);
-      let updatedSections = 0;
+      const finishReason = response.choices[0]?.finish_reason || null;
       logger.info("[clinical-worker] openai:response", {
         consultaId,
         executionId: execution.id,
         responseChars: rawContent.length,
+        finishReason,
         promptTokens: response.usage?.prompt_tokens ?? null,
         completionTokens: response.usage?.completion_tokens ?? null,
         totalTokens: response.usage?.total_tokens ?? null,
+      });
+      if (finishReason === "length") {
+        throw new Error("Respuesta de OpenAI truncada por limite de salida");
+      }
+
+      let extractedData: Record<string, unknown>;
+      try {
+        extractedData = JSON.parse(rawContent) as Record<string, unknown>;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`Respuesta JSON invalida de OpenAI: ${detail}`);
+      }
+      const phaseDetection = parseAnamnesisPhaseDetection(extractedData?._meta_anamnesis);
+      let updatedSections = 0;
+      logger.info("[clinical-worker] openai:parsed", {
+        consultaId,
+        executionId: execution.id,
         hasPhaseDetection: Boolean(phaseDetection),
       });
 

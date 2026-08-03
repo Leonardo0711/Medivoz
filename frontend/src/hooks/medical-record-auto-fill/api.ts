@@ -37,7 +37,17 @@ const mapSectionsToRecord = (sections: AutoFillSection[]) => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const waitForQueuedRecord = async (consultaId: string, controller: AbortController): Promise<MedicalRecordData | null> => {
+type ExtractionJobStatus = {
+  state?: string;
+  attemptsMade?: number;
+  failureCode?: string | null;
+};
+
+const waitForQueuedRecord = async (
+  consultaId: string,
+  jobId: string,
+  controller: AbortController
+): Promise<MedicalRecordData | null> => {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (controller.signal.aborted) throw new Error("Auto-fill request timed out");
     await sleep(attempt === 0 ? 700 : 1000);
@@ -60,6 +70,30 @@ const waitForQueuedRecord = async (consultaId: string, controller: AbortControll
       hasPendingIa,
     });
     if (hasPendingIa || (hasData && attempt >= 2)) return record;
+
+    const statusResponse = await api.get<ExtractionJobStatus>(
+      `/scribe/record/${consultaId}/extraction-status/${encodeURIComponent(jobId)}`,
+      { signal: controller.signal }
+    );
+    const status = statusResponse.data;
+    logger.info("Queued extraction status", {
+      consultaId,
+      jobId,
+      state: status.state,
+      attemptsMade: status.attemptsMade,
+      failureCode: status.failureCode,
+    });
+    if (status.state === "failed") {
+      const reason = status.failureCode === "output_truncated"
+        ? "La respuesta de IA fue demasiado extensa y no pudo completarse."
+        : status.failureCode === "invalid_ai_response"
+          ? "La IA devolvió una respuesta incompleta."
+          : "El procesamiento de la ficha falló.";
+      throw new Error(`${reason} Vuelve a intentar el llenado.`);
+    }
+    if (status.state === "completed" && !hasData) {
+      throw new Error("La IA terminó, pero no encontró datos clínicos sustentados para llenar la ficha.");
+    }
   }
   return null;
 };
@@ -95,7 +129,9 @@ export const invokeAutoFillFunction = async (
         state: data.job?.state,
       });
       toast.info("Procesando ficha con IA por secciones...");
-      const queuedRecord = await waitForQueuedRecord(options.consultaId, controller);
+      const jobId = String(data.job?.jobId || "");
+      if (!jobId) throw new Error("El servidor no devolvió el identificador del trabajo de IA.");
+      const queuedRecord = await waitForQueuedRecord(options.consultaId, jobId, controller);
       if (!queuedRecord) {
         toast.warning("La IA sigue procesando. Actualiza la ficha en unos segundos.");
       }

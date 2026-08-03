@@ -15,6 +15,28 @@ export const clinicalExtractionQueue = new Queue<ClinicalExtractionJobData>("cli
   connection: redisConnection,
 });
 
+export const getClinicalExtractionJobStatus = async (jobId: string, consultaId: string) => {
+  const job = await clinicalExtractionQueue.getJob(jobId);
+  if (!job || job.data.consultaId !== consultaId) return null;
+
+  const state = await job.getState();
+  const failedReason = job.failedReason || "";
+  const failureCode = failedReason.includes("truncada por limite")
+    ? "output_truncated"
+    : failedReason.includes("JSON invalida")
+      ? "invalid_ai_response"
+      : state === "failed"
+        ? "extraction_failed"
+        : null;
+
+  return {
+    jobId,
+    state,
+    attemptsMade: job.attemptsMade,
+    failureCode,
+  };
+};
+
 const mergeRanges = (a?: number | null, b?: number | null, mode: "min" | "max" = "min") => {
   const x = Number(a || 0);
   const y = Number(b || 0);

@@ -11,7 +11,10 @@ import { db } from "../../db/index.js";
 import { consultations } from "../../db/schema/clinical.js";
 import { audioTemporalService } from "./audio-temporal.service.js";
 import { transcriptionSegmentService } from "./transcription-segment.service.js";
-import { enqueueClinicalExtraction } from "../../worker/clinical.queue.js";
+import {
+  enqueueClinicalExtraction,
+  getClinicalExtractionJobStatus,
+} from "../../worker/clinical.queue.js";
 import { logger } from "../../core/utils/logger.js";
 import { requireClinicalAccess } from "../../core/auth/roles.js";
 
@@ -499,6 +502,21 @@ export async function scribeRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  app.get("/record/:consultaId/extraction-status/:jobId", async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    const { consultaId, jobId } = request.params as any;
+    const consultation = await getDoctorConsultation(consultaId, doctorId);
+    if (!consultation) {
+      return reply.code(403).send({ error: "Consulta no autorizada para procesamiento IA" });
+    }
+
+    const status = await getClinicalExtractionJobStatus(jobId, consultaId);
+    if (!status) {
+      return reply.code(404).send({ error: "Trabajo de IA no encontrado" });
+    }
+    return status;
+  });
 
   app.post(
     "/record/:consultaId/sections/:nombre/retry",

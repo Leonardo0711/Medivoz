@@ -51,6 +51,8 @@ export function useMedicalRecordAutoFill() {
             ? "No hay conexion con el servidor."
             : errorMessage.includes("401")
               ? "Tu sesion expiro. Vuelve a iniciar sesion."
+              : errorMessage.includes("IA") || errorMessage.includes("datos clinicos")
+                ? errorMessage
               : "No se pudo procesar la transcripción con IA.";
         toast.error(friendlyMessage);
       }
