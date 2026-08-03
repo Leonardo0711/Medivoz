@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -253,11 +254,13 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
           </div>
         </ScrollArea>
 
-        <DialogFooter className="shrink-0 border-t bg-muted/20 px-6 py-4 sm:justify-between">
-          <div className="text-xs text-muted-foreground">
-            {record?.sesion_id ? `Sesión: ${record.sesion_id}` : ""}
-          </div>
-          <Button onClick={() => onOpenChange(false)}>Cerrar ficha</Button>
+        <DialogFooter className="shrink-0 gap-2 border-t bg-muted/20 px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
+          {patient?.id && (
+            <Button asChild>
+              <Link to={`/session?patientId=${patient.id}`}>Abrir anamnesis</Link>
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

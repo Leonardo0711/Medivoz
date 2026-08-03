@@ -51,14 +51,9 @@ export class ClinicalService {
         ultimaVisita: patients.ultimaVisita,
         createdAt: patients.createdAt,
         updatedAt: patients.updatedAt,
-        consultasPendientesValidacion: sql<number>`(
-          select count(*)
-          from ${consultations} consulta_pendiente
-          join ${medicalRecords} ficha_pendiente
-            on ficha_pendiente.consulta_id = consulta_pendiente.id
-          where consulta_pendiente.paciente_id = ${outerPatientId}
-            and consulta_pendiente.doctor_id = ${doctorId}
-            and (
+        consultasPendientesValidacion: sql<number>`coalesce((
+          select case when
+            (
               nullif(btrim(ficha_pendiente.resumen_actual), '') is not null
               or nullif(btrim(ficha_pendiente.resumen_sugerido_ia), '') is not null
               or nullif(btrim(ficha_pendiente.nota_essi), '') is not null
@@ -80,7 +75,15 @@ export class ClinicalService {
                   and seccion_pendiente.estado = 'borrador_ia'
               )
             )
-        )`,
+            then 1 else 0 end
+          from ${consultations} consulta_pendiente
+          join ${medicalRecords} ficha_pendiente
+            on ficha_pendiente.consulta_id = consulta_pendiente.id
+          where consulta_pendiente.paciente_id = ${outerPatientId}
+            and consulta_pendiente.doctor_id = ${doctorId}
+          order by consulta_pendiente.creado_en desc, consulta_pendiente.id desc
+          limit 1
+        ), 0)`,
         seccionesPendientesIa: sql<number>`(
           select count(*)
           from ${consultations} consulta_seccion
@@ -89,6 +92,14 @@ export class ClinicalService {
           where consulta_seccion.paciente_id = ${outerPatientId}
             and consulta_seccion.doctor_id = ${doctorId}
             and seccion_pendiente.estado = 'borrador_ia'
+            and consulta_seccion.id = (
+              select consulta_vigente.id
+              from ${consultations} consulta_vigente
+              where consulta_vigente.paciente_id = ${outerPatientId}
+                and consulta_vigente.doctor_id = ${doctorId}
+              order by consulta_vigente.creado_en desc, consulta_vigente.id desc
+              limit 1
+            )
         )`,
         resumenesPendientes: sql<number>`(
           select count(*)
@@ -96,6 +107,14 @@ export class ClinicalService {
           join ${medicalRecords} ficha_resumen on ficha_resumen.consulta_id = consulta_resumen.id
           where consulta_resumen.paciente_id = ${outerPatientId}
             and consulta_resumen.doctor_id = ${doctorId}
+            and consulta_resumen.id = (
+              select consulta_vigente.id
+              from ${consultations} consulta_vigente
+              where consulta_vigente.paciente_id = ${outerPatientId}
+                and consulta_vigente.doctor_id = ${doctorId}
+              order by consulta_vigente.creado_en desc, consulta_vigente.id desc
+              limit 1
+            )
             and nullif(btrim(ficha_resumen.resumen_actual), '') is null
             and exists (
               select 1 from ${medicalRecordSections} seccion_resumen
@@ -112,6 +131,14 @@ export class ClinicalService {
           join ${medicalRecords} ficha_essi on ficha_essi.consulta_id = consulta_essi.id
           where consulta_essi.paciente_id = ${outerPatientId}
             and consulta_essi.doctor_id = ${doctorId}
+            and consulta_essi.id = (
+              select consulta_vigente.id
+              from ${consultations} consulta_vigente
+              where consulta_vigente.paciente_id = ${outerPatientId}
+                and consulta_vigente.doctor_id = ${doctorId}
+              order by consulta_vigente.creado_en desc, consulta_vigente.id desc
+              limit 1
+            )
             and nullif(btrim(ficha_essi.resumen_actual), '') is not null
             and nullif(btrim(ficha_essi.nota_essi), '') is null
         )`,
@@ -263,7 +290,24 @@ export class ClinicalService {
       })
       .from(consultations)
       .leftJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
-      .where(and(...conditions))
+      .where(
+        and(
+          ...conditions,
+          sql`not exists (
+            select 1
+            from ${consultations} consulta_mas_reciente
+            where consulta_mas_reciente.paciente_id = "consultas"."paciente_id"
+              and consulta_mas_reciente.doctor_id = "consultas"."doctor_id"
+              and (
+                consulta_mas_reciente.creado_en > "consultas"."creado_en"
+                or (
+                  consulta_mas_reciente.creado_en = "consultas"."creado_en"
+                  and consulta_mas_reciente.id > "consultas"."id"
+                )
+              )
+          )`
+        )
+      )
       .orderBy(desc(consultations.fecha));
 
     return rows.map(({ fichaId, resumenActual, resumenSugeridoIa, notaEssi, ...row }) => {
@@ -306,26 +350,48 @@ export class ClinicalService {
 
   async createConsultation(doctorId: string, data: any) {
     await this.getPatientById(data.pacienteId, doctorId);
-    const plantillaAnamnesisId =
-      data.plantillaAnamnesisId ?? (await this.getDefaultAnamnesisTemplateId(doctorId));
+    const plantillaAnamnesisId = data.plantillaAnamnesisId ?? (await this.getDefaultAnamnesisTemplateId(doctorId));
 
-    const [newConsultation] = await db
-      .insert(consultations)
-      .values({
+    return db.transaction(async (tx) => {
+      const lockKey = `${doctorId}:${data.pacienteId}`;
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+
+      const [existingConsultation] = await tx
+        .select()
+        .from(consultations)
+        .where(and(eq(consultations.doctorId, doctorId), eq(consultations.pacienteId, data.pacienteId)))
+        .orderBy(desc(consultations.createdAt), desc(consultations.id))
+        .limit(1);
+
+      if (existingConsultation) {
+        logger.info("[clinical] consultation:reused", {
+          consultationId: existingConsultation.id,
+          patientId: data.pacienteId,
+          doctorId,
+        });
+        return { ...existingConsultation, reutilizada: true };
+      }
+
+      const [newConsultation] = await tx
+        .insert(consultations)
+        .values({
+          doctorId,
+          pacienteId: data.pacienteId,
+          plantillaAnamnesisId,
+          codigoSesion: buildConsultationCode(),
+          tipoConsulta: data.tipoConsulta ?? "primera_consulta",
+          estado: data.estado ?? "en_espera",
+          fecha: data.fecha ? new Date(data.fecha) : new Date(),
+        })
+        .returning();
+
+      logger.info("[clinical] consultation:created", {
+        consultationId: newConsultation.id,
+        patientId: data.pacienteId,
         doctorId,
-        pacienteId: data.pacienteId,
-        plantillaAnamnesisId,
-        codigoSesion: buildConsultationCode(),
-        tipoConsulta: data.tipoConsulta ?? "primera_consulta",
-        estado: data.estado ?? "en_espera",
-        fecha: data.fecha ? new Date(data.fecha) : new Date(),
-      })
-      .returning();
-
-    return {
-      ...newConsultation,
-      codigoSesion: newConsultation.codigoSesion,
-    };
+      });
+      return { ...newConsultation, reutilizada: false };
+    });
   }
 
   async updateConsultation(id: string, doctorId: string, data: any) {

@@ -2,7 +2,7 @@ import { FileText, ChevronRight, User, Mic, ClipboardCheck } from "lucide-react"
 
 const steps = [
   { number: 1, label: "Selecciona Paciente", icon: User },
-  { number: 2, label: "Graba sesión", icon: Mic },
+  { number: 2, label: "Graba anamnesis", icon: Mic },
   { number: 3, label: "Revisa Ficha", icon: ClipboardCheck },
 ];
 

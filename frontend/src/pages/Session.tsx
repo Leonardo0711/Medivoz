@@ -73,9 +73,14 @@ export default function Session() {
   } = useMedicalRecord(currentSessionId, patientId);
 
   const loadPatient = useCallback(async (id: string) => {
+    setCurrentSessionId(null);
+    setTranscription("");
     try {
-      const response = await api.get(`/clinical/patients/${id}`);
-      const data = response.data;
+      const [patientResponse, consultationsResponse] = await Promise.all([
+        api.get(`/clinical/patients/${id}`),
+        api.get("/clinical/consultations", { params: { pacienteId: id } }),
+      ]);
+      const data = patientResponse.data;
       if (data) {
         setSelectedPatient({
           id: data.id,
@@ -88,7 +93,13 @@ export default function Session() {
           diagnostico: data.diagnostico,
           ultima_visita: data.ultimaVisita,
         });
-        toast.success(`Paciente ${data.nombre} cargado correctamente`);
+        const currentConsultation = Array.isArray(consultationsResponse.data)
+          ? consultationsResponse.data[0]
+          : null;
+        if (currentConsultation?.id) {
+          setCurrentSessionId(currentConsultation.id);
+          setTranscription(currentConsultation.transcripcion || "");
+        }
       }
     } catch (requestError) {
       logger.error("Error loading patient:", requestError);
@@ -103,7 +114,6 @@ export default function Session() {
 
   const handleSessionCreated = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
-    toast.success(`Sesión ${sessionId} iniciada correctamente`);
   }, []);
 
   const handleTranscriptionReady = useCallback((text: string) => {
@@ -201,10 +211,10 @@ export default function Session() {
                   <span className="rounded-md bg-primary/10 p-1.5">
                     <Stethoscope className="h-5 w-5 text-primary" />
                   </span>
-                  Sesión de consulta
+                  Anamnesis del paciente
                 </h1>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Gestión integral de consulta médica asistida por IA.
+                  Grabación, estructuración y validación de una única ficha vigente.
                 </p>
               </div>
 
@@ -212,7 +222,7 @@ export default function Session() {
                 <div className="animate-in slide-in-from-right-5 flex items-center gap-2 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5">
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-xs font-medium text-muted-foreground">
-                    Sesión activa:
+                    Ficha activa:
                     <span className="ml-1 font-mono text-foreground">
                       {currentSessionId.substring(0, 8)}
                     </span>

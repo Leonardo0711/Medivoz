@@ -41,6 +41,19 @@ export class EvaluationsService {
           and nullif(btrim(${medicalRecords.notaEssi}), '') is not null
           and not exists (
             select 1
+            from ${consultations} consulta_mas_reciente
+            where consulta_mas_reciente.paciente_id = "consultas"."paciente_id"
+              and consulta_mas_reciente.doctor_id = "consultas"."doctor_id"
+              and (
+                consulta_mas_reciente.creado_en > "consultas"."creado_en"
+                or (
+                  consulta_mas_reciente.creado_en = "consultas"."creado_en"
+                  and consulta_mas_reciente.id > "consultas"."id"
+                )
+              )
+          )
+          and not exists (
+            select 1
             from ${medicalRecordSections}
             where ${medicalRecordSections.fichaId} = ${outerMedicalRecordId}
               and ${medicalRecordSections.estado} = 'borrador_ia'
@@ -71,7 +84,24 @@ export class EvaluationsService {
       })
       .from(consultations)
       .innerJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
-      .where(eq(consultations.id, consultaId))
+      .where(
+        and(
+          eq(consultations.id, consultaId),
+          sql`not exists (
+            select 1
+            from ${consultations} consulta_mas_reciente
+            where consulta_mas_reciente.paciente_id = "consultas"."paciente_id"
+              and consulta_mas_reciente.doctor_id = "consultas"."doctor_id"
+              and (
+                consulta_mas_reciente.creado_en > "consultas"."creado_en"
+                or (
+                  consulta_mas_reciente.creado_en = "consultas"."creado_en"
+                  and consulta_mas_reciente.id > "consultas"."id"
+                )
+              )
+          )`
+        )
+      )
       .limit(1);
 
     if (!row) return null;

@@ -3,12 +3,12 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ArrowRight,
   Calendar,
-  FileText,
-  History,
+  CircleCheck,
   Mic,
-  TrendingUp,
+  Stethoscope,
   Users,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -19,9 +19,9 @@ import { logger } from "@/utils/logger";
 
 interface DashboardStats {
   totalPatients: number;
-  totalSessions: number;
-  sessionsThisMonth: number;
-  recordsThisMonth: number;
+  anamnesisStarted: number;
+  pendingValidation: number;
+  completedRecords: number;
 }
 
 export default function Dashboard() {
@@ -44,19 +44,27 @@ export default function Dashboard() {
           api.get("/clinical/consultations"),
         ]);
 
+        const patientRows = Array.isArray(patients.data) ? patients.data : [];
+        const consultationRows = Array.isArray(sessions.data) ? sessions.data : [];
+        const started = consultationRows.filter((consultation) =>
+          Boolean(consultation?.transcripcion?.trim()) || Number(consultation?.seccionesConDatos || 0) > 0
+        );
+
         return {
-          totalPatients: patients.data.length,
-          totalSessions: sessions.data.length,
-          sessionsThisMonth: Math.floor(sessions.data.length * 0.4),
-          recordsThisMonth: Math.floor(sessions.data.length * 0.3),
+          totalPatients: patientRows.length,
+          anamnesisStarted: started.length,
+          pendingValidation: patientRows.filter(
+            (patient) => Number(patient?.consultasPendientesValidacion || 0) > 0
+          ).length,
+          completedRecords: started.filter((consultation) => !consultation?.requiereValidacion).length,
         };
       } catch (err) {
         logger.error("Error fetching dashboard stats:", err);
         return {
           totalPatients: 0,
-          totalSessions: 0,
-          sessionsThisMonth: 0,
-          recordsThisMonth: 0,
+          anamnesisStarted: 0,
+          pendingValidation: 0,
+          completedRecords: 0,
         };
       }
     },
@@ -79,23 +87,23 @@ export default function Dashboard() {
       bgColor: "bg-blue-50 dark:bg-blue-900/20",
     },
     {
-      label: "Sesiones totales",
-      value: stats?.totalSessions ?? 0,
-      icon: History,
+      label: "Anamnesis iniciadas",
+      value: stats?.anamnesisStarted ?? 0,
+      icon: Stethoscope,
       iconColor: "text-violet-600 dark:text-violet-400",
       bgColor: "bg-violet-50 dark:bg-violet-900/20",
     },
     {
-      label: "Sesiones este mes",
-      value: stats?.sessionsThisMonth ?? 0,
-      icon: TrendingUp,
+      label: "Pendientes de validar",
+      value: stats?.pendingValidation ?? 0,
+      icon: AlertTriangle,
       iconColor: "text-emerald-600 dark:text-emerald-400",
       bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
     },
     {
-      label: "Fichas este mes",
-      value: stats?.recordsThisMonth ?? 0,
-      icon: FileText,
+      label: "Fichas completas",
+      value: stats?.completedRecords ?? 0,
+      icon: CircleCheck,
       iconColor: "text-amber-600 dark:text-amber-400",
       bgColor: "bg-amber-50 dark:bg-amber-900/20",
     },
@@ -103,8 +111,8 @@ export default function Dashboard() {
 
   const quickActions = [
     {
-      title: "Nueva sesion",
-      description: "Iniciar grabación y transcripción de consulta médica",
+      title: "Iniciar o continuar anamnesis",
+      description: "Seleccionar un paciente y trabajar sobre su ficha vigente",
       href: "/session",
       icon: Mic,
       iconColor: "text-primary",
@@ -112,19 +120,11 @@ export default function Dashboard() {
     },
     {
       title: "Pacientes",
-      description: "Gestionar listado y expedientes de pacientes",
+      description: "Gestionar pacientes, fichas y validaciones pendientes",
       href: "/patients",
       icon: Users,
       iconColor: "text-emerald-600 dark:text-emerald-400",
       bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
-    },
-    {
-      title: "Historial",
-      description: "Revisar sesiones pasadas y fichas médicas",
-      href: "/history",
-      icon: History,
-      iconColor: "text-violet-600 dark:text-violet-400",
-      bgColor: "bg-violet-50 dark:bg-violet-900/20",
     },
   ];
 
@@ -182,7 +182,7 @@ export default function Dashboard() {
 
           <section className="mb-8">
             <h2 className="mb-4 text-lg font-semibold text-foreground">Acciones rapidas</h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {quickActions.map((action) => (
                 <Link key={action.href} to={action.href} className="group block">
                   <Card className="h-full border-border/40 transition-all duration-200 hover:border-primary/30 hover:shadow-md">

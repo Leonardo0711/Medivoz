@@ -66,7 +66,7 @@ export default function Patients() {
 
   const handlePatientCreated = () => {
     refetch();
-    toast.success("Paciente creado con éxito. Ya puedes iniciar una sesión médica.");
+    toast.success("Paciente creado con éxito. Ya puedes iniciar su anamnesis.");
   };
 
   const handleEditPatient = (patient: Patient) => {
@@ -148,7 +148,7 @@ export default function Patients() {
             }}
             onConfirm={confirmDeletePatient}
             title="Eliminar paciente"
-            description={`Estas seguro de que deseas eliminar a ${selectedPatient?.nombre || "este paciente"} y todas sus consultas? Esta accion no se puede deshacer.`}
+            description={`¿Estás seguro de que deseas eliminar a ${selectedPatient?.nombre || "este paciente"} y toda su información? Esta acción no se puede deshacer.`}
             isDeleting={isDeleting}
           />
 

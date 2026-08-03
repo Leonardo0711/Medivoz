@@ -75,7 +75,7 @@ export function PatientsList({
               <>
                 <h3 className="text-lg font-semibold text-foreground">No hay pacientes registrados</h3>
                 <p className="text-sm text-muted-foreground">
-                  Comienza agregando tu primer paciente para crear sesiones médicas.
+                  Comienza agregando tu primer paciente para crear su anamnesis.
                 </p>
               </>
             )}
@@ -154,13 +154,13 @@ export function PatientsList({
                   {Number(patient.consultasPendientesValidacion || 0) > 0 ? (
                     <div className="space-y-1.5">
                       <Link
-                        to={`/history?patientId=${patient.id}&pendingValidation=1`}
+                        to={`/session?patientId=${patient.id}`}
                         title={getPendingValidationLabel(patient)}
                         className="inline-flex"
                       >
                         <Badge className="gap-1.5 border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
                           <AlertTriangle className="h-3.5 w-3.5" />
-                          {patient.consultasPendientesValidacion} {patient.consultasPendientesValidacion === 1 ? "pendiente" : "pendientes"}
+                          Anamnesis pendiente
                         </Badge>
                       </Link>
                       <p className="max-w-[220px] text-[11px] leading-4 text-muted-foreground">

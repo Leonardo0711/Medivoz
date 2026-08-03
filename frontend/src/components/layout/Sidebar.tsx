@@ -5,7 +5,6 @@ import {
   ChevronRight,
   ClipboardCheck,
   Cpu,
-  History,
   Home,
   LogOut,
   Menu,
@@ -45,7 +44,6 @@ export function Sidebar() {
       { name: "Inicio", href: "/dashboard", icon: Home },
       { name: "Pacientes", href: "/patients", icon: Users },
       { name: "Consulta en vivo", href: "/session", icon: Mic },
-      { name: "Historial", href: "/history", icon: History },
       { name: "Agentes IA", href: "/agents", icon: Cpu },
     ];
     return user?.rol === "administrador" ? [...clinicalItems, evaluationItem] : clinicalItems;

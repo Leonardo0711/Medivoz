@@ -199,17 +199,17 @@ export function useSessionRecorder({
         metadata: { source: "web_recorder" },
       });
 
-      const { id, codigoSesion } = response.data;
+      const { id, codigoSesion, reutilizada } = response.data;
       setSessionId(codigoSesion);
       setDbSessionId(id);
 
-      toast.success("Consulta creada correctamente");
+      toast.success(reutilizada ? "Anamnesis existente cargada" : "Anamnesis creada correctamente");
 
       if (onSessionCreated) onSessionCreated(id);
       return { sessionId: codigoSesion, dbSessionId: id };
     } catch (error) {
       logger.error("Error creating session:", error);
-      toast.error("Error al crear la sesion");
+      toast.error("No se pudo abrir la anamnesis");
       return null;
     }
   };

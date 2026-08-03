@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/auth/PrivateRoute";
@@ -22,7 +22,6 @@ const Signup = lazy(() => import("./pages/Signup"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Patients = lazy(() => import("./pages/Patients"));
 const Session = lazy(() => import("./pages/Session"));
-const SessionHistory = lazy(() => import("./pages/SessionHistory"));
 const Agents = lazy(() => import("./pages/Agents"));
 const AgentDetail = lazy(() => import("./pages/AgentDetail"));
 const Evaluations = lazy(() => import("./pages/Evaluations"));
@@ -86,7 +85,7 @@ const App = () => {
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/patients" element={<Patients />} />
                             <Route path="/session" element={<Session />} />
-                            <Route path="/history" element={<SessionHistory />} />
+                            <Route path="/history" element={<Navigate to="/patients" replace />} />
                             <Route path="/agents" element={<Agents />} />
                             <Route path="/agents/:id" element={<AgentDetail />} />
                           </Route>

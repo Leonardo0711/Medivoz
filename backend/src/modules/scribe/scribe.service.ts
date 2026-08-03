@@ -158,7 +158,15 @@ export class ScribeService {
       resumenCambios?: string | null;
     },
     executor: DbExecutor = db
-  ) {
+  ): Promise<typeof medicalRecordVersions.$inferSelect | null> {
+    if (executor === db) {
+      return db.transaction((tx) => this.createRecordVersion(fichaId, options, tx));
+    }
+
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`medical-record-version:${fichaId}`}, 0))`
+    );
+
     const [record] = await executor.select().from(medicalRecords).where(eq(medicalRecords.id, fichaId)).limit(1);
     if (!record) return null;
 

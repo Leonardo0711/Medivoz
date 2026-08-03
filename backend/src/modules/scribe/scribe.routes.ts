@@ -439,9 +439,9 @@ export async function scribeRoutes(app: FastifyInstance) {
           consultaId,
           section: nombre,
           action,
-          message: error?.message || "unknown",
+          errorCode: error?.cause?.code || error?.code || "unknown",
         });
-        return reply.code(400).send({ error: error.message || "No se pudo actualizar la seccion" });
+        return reply.code(400).send({ error: "No se pudo actualizar la sección" });
       }
     }
   );
