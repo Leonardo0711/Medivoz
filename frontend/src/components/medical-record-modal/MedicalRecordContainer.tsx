@@ -47,6 +47,7 @@ interface MedicalRecordContainerProps {
   sessionId?: string | null;
   showCloseButton?: boolean;
   showTranscriptionPanel?: boolean;
+  showTranscriptionSummary?: boolean;
 }
 
 export const MedicalRecordContainer = memo(
@@ -79,6 +80,7 @@ export const MedicalRecordContainer = memo(
     sessionId,
     showCloseButton = true,
     showTranscriptionPanel = true,
+    showTranscriptionSummary = true,
   }: MedicalRecordContainerProps) {
     const { isAutoFilling, autoFillMedicalRecord } = useMedicalRecordAutoFill();
 
@@ -132,7 +134,7 @@ export const MedicalRecordContainer = memo(
                 isAutoFilling={isAutoFilling}
               />
             </div>
-          ) : (
+          ) : showTranscriptionSummary ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>Transcripcion</span>
@@ -156,7 +158,7 @@ export const MedicalRecordContainer = memo(
                 Re-llenar
               </Button>
             </div>
-          )}
+          ) : null}
           <MedicalRecordForm
             formData={formData}
             sectionMeta={sectionMeta}
@@ -206,7 +208,8 @@ export const MedicalRecordContainer = memo(
       prevProps.patientId === nextProps.patientId &&
       prevProps.sessionId === nextProps.sessionId &&
       prevProps.showCloseButton === nextProps.showCloseButton &&
-      prevProps.showTranscriptionPanel === nextProps.showTranscriptionPanel
+      prevProps.showTranscriptionPanel === nextProps.showTranscriptionPanel &&
+      prevProps.showTranscriptionSummary === nextProps.showTranscriptionSummary
       // Note: Callbacks (handleChange, toggleTranscriptionView, onSave, onExport, etc.)
       // should be memoized with useCallback in parent component
     );
