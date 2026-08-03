@@ -16,6 +16,7 @@ interface SessionRecorderProps {
   onTranscriptionReady: (transcription: string) => void;
   patientId?: string | null;
   isPatientSelected: boolean;
+  plantillaAnamnesisId?: string | null;
   onSessionCreated?: (sessionId: string) => void;
 }
 
@@ -24,6 +25,7 @@ export const SessionRecorder = memo(
     onTranscriptionReady,
     patientId,
     isPatientSelected,
+    plantillaAnamnesisId,
     onSessionCreated,
   }: SessionRecorderProps) {
     const [audioTranscription, setAudioTranscription] = useState<string>("");
@@ -43,6 +45,7 @@ export const SessionRecorder = memo(
     } = useSessionRecorder({
       patientId,
       isPatientSelected,
+      plantillaAnamnesisId,
       onTranscriptionReady,
       onSessionCreated,
     });
@@ -323,4 +326,5 @@ export const SessionRecorder = memo(
   (prevProps, nextProps) =>
     prevProps.patientId === nextProps.patientId &&
     prevProps.isPatientSelected === nextProps.isPatientSelected
-);
+    && prevProps.plantillaAnamnesisId === nextProps.plantillaAnamnesisId
+  );

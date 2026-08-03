@@ -10,6 +10,7 @@ export type User = {
   nombreCompleto?: string | null;
   especialidadId?: number | null;
   especialidad?: string | null;
+  plantillaAnamnesisPredeterminadaId?: string | null;
 } | null;
 
 type AuthContextType = {

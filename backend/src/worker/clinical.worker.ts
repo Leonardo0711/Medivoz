@@ -6,7 +6,7 @@ import { redisConnection } from "../config/redis.js";
 import { logger } from "../core/utils/logger.js";
 import { db } from "../db/index.js";
 import { agentExecutions, agentTemplates, doctorAgentPrompts, doctorAgents } from "../db/schema/agents.js";
-import { consultations } from "../db/schema/clinical.js";
+import { anamnesisTemplateSections, anamnesisTemplates, consultations } from "../db/schema/clinical.js";
 import { medicalRecordSections, transcriptionSegments } from "../db/schema/scribe.js";
 import { agentsService } from "../modules/agents/agents.service.js";
 import { audioTemporalService } from "../modules/scribe/audio-temporal.service.js";
@@ -379,6 +379,51 @@ Nuevos segmentos de transcripcion:
 ${transcript}`;
 };
 
+const resolveTemplateContext = async (
+  templateId: string | null | undefined,
+  sections: SectionName[]
+) => {
+  if (!templateId) return null;
+
+  const template = await db.query.anamnesisTemplates.findFirst({
+    columns: {
+      nombrePlantilla: true,
+      descripcion: true,
+    },
+    where: and(
+      eq(anamnesisTemplates.id, templateId),
+      eq(anamnesisTemplates.esActiva, true)
+    ),
+  });
+  if (!template) return null;
+
+  const sectionRows = await db
+    .select({
+      seccion: anamnesisTemplateSections.seccion,
+      etiqueta: anamnesisTemplateSections.etiquetaVisible,
+      descripcionIa: anamnesisTemplateSections.descripcionIa,
+    })
+    .from(anamnesisTemplateSections)
+    .where(
+      and(
+        eq(anamnesisTemplateSections.plantillaAnamnesisId, templateId),
+        eq(anamnesisTemplateSections.activa, true),
+        inArray(anamnesisTemplateSections.seccion, sections)
+      )
+    )
+    .orderBy(asc(anamnesisTemplateSections.orden));
+
+  const sectionGuidance = sectionRows
+    .map((section) => `- ${section.seccion} (${section.etiqueta}): ${section.descripcionIa || "Sin instruccion adicional."}`)
+    .join("\n");
+
+  return [
+    `Ficha seleccionada: ${template.nombrePlantilla}.`,
+    template.descripcion ? `Contexto clinico: ${template.descripcion}` : "",
+    sectionGuidance ? `Enfoque por campo:\n${sectionGuidance}` : "",
+  ].filter(Boolean).join("\n");
+};
+
 const resolveExtractorAgent = async (doctorId: string) => {
   await agentsService.ensureDefaultAgents(doctorId);
 
@@ -454,6 +499,7 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
         versionTranscripcion: true,
         transcripcion: true,
         estadoAnamnesis: true,
+        plantillaAnamnesisId: true,
       },
       where: eq(consultations.id, consultaId),
     });
@@ -544,6 +590,10 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
     }
 
     const extractorAgent = await resolveExtractorAgent(consultation.doctorId);
+    const templateContext = await resolveTemplateContext(
+      consultation.plantillaAnamnesisId,
+      targetSections
+    );
     const model = extractorAgent?.model || "gpt-4o-mini";
     const temperature = String(extractorAgent?.temperature ?? "0");
     const numericTemperature = Number.parseFloat(temperature) || 0;
@@ -552,7 +602,7 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
       targetSections,
       compactTranscript,
       Object.fromEntries(existingMap.entries()) as Partial<Record<SectionName, string>>,
-      extractorAgent?.prompt
+      [extractorAgent?.prompt, templateContext].filter(Boolean).join("\n\n")
     );
 
     const startedAt = new Date();
@@ -573,6 +623,7 @@ export const clinicalWorker = new Worker<ClinicalExtractionJobData>(
           prompt,
           targetSections,
           trigger: job.data.trigger || "unknown",
+          plantillaAnamnesisId: consultation.plantillaAnamnesisId || null,
           versionTranscripcionBase: versionTranscripcionBase || null,
         },
         inicioEjecucion: startedAt,

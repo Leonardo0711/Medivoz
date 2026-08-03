@@ -7,6 +7,7 @@ import { SessionRecorder } from "@/components/SessionRecorder";
 import { Transcription } from "@/components/Transcription";
 import { SessionPatientCard } from "@/components/session/SessionPatientCard";
 import { EmptyRecordPlaceholder } from "@/components/session/EmptyRecordPlaceholder";
+import { SessionTemplateCard } from "@/components/session/SessionTemplateCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +17,7 @@ import { useMedicalRecord } from "@/hooks/medical-record/use-medical-record";
 import { logger } from "@/utils/logger";
 import api from "@/lib/api";
 import { useUnsavedRecordGuard } from "@/contexts/UnsavedRecordContext";
+import { AnamnesisTemplate } from "@/types/anamnesis-templates";
 
 type AnamnesisPhase = {
   estadoAnamnesis?: string | null;
@@ -38,6 +40,10 @@ export default function Session() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [anamnesisPhase, setAnamnesisPhase] = useState<AnamnesisPhase | null>(null);
   const [isStructuringLive, setIsStructuringLive] = useState(false);
+  const [templates, setTemplates] = useState<AnamnesisTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const lastTranscriptionActivityRef = useRef(0);
   const recordRefreshInFlightRef = useRef(false);
   const structuringTimeoutRef = useRef<number | null>(null);
@@ -84,6 +90,27 @@ export default function Session() {
     currentSessionId && (hasUnsavedChanges || (recordExists && !recordFinalized))
   );
 
+  const defaultTemplateId = templates.find((template) => template.esPredeterminada)?.id || "";
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
+  const isTemplateLocked = Boolean(transcription.trim() || recordExists);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const response = await api.get<AnamnesisTemplate[]>("/clinical/anamnesis-templates");
+        setTemplates(response.data);
+        const defaultTemplate = response.data.find((template) => template.esPredeterminada);
+        setSelectedTemplateId((current) => current || defaultTemplate?.id || response.data[0]?.id || "");
+      } catch (error) {
+        logger.error("No se pudieron cargar las fichas:", error);
+        toast.error("No se pudieron cargar las fichas disponibles");
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    };
+    void loadTemplates();
+  }, []);
+
   useEffect(() => {
     configureGuard({
       active: hasPendingRecordWork,
@@ -120,13 +147,16 @@ export default function Session() {
         if (currentConsultation?.id) {
           setCurrentSessionId(currentConsultation.id);
           setTranscription(currentConsultation.transcripcion || "");
+          setSelectedTemplateId(currentConsultation.plantillaAnamnesisId || defaultTemplateId);
+        } else {
+          setSelectedTemplateId(defaultTemplateId);
         }
       }
     } catch (requestError) {
       logger.error("Error loading patient:", requestError);
       toast.error("Error al cargar el paciente");
     }
-  }, []);
+  }, [defaultTemplateId]);
 
   useEffect(() => {
     const id = searchParams.get("patientId");
@@ -148,10 +178,31 @@ export default function Session() {
         setCurrentSessionId(null);
         setTranscription("");
         setAnamnesisPhase(null);
+        setSelectedTemplateId(defaultTemplateId);
       });
     },
-    [loadPatient, requestAction]
+    [defaultTemplateId, loadPatient, requestAction]
   );
+
+  const handleTemplateChange = useCallback(async (templateId: string) => {
+    const previousTemplateId = selectedTemplateId;
+    setSelectedTemplateId(templateId);
+    if (!currentSessionId) return;
+
+    setIsSavingTemplate(true);
+    try {
+      await api.patch(`/clinical/consultations/${currentSessionId}`, {
+        plantillaAnamnesisId: templateId,
+      });
+      toast.success("Ficha de la consulta actualizada");
+    } catch (error) {
+      setSelectedTemplateId(previousTemplateId);
+      logger.error("No se pudo cambiar la ficha de la consulta:", error);
+      toast.error("No se pudo cambiar la ficha de la consulta");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  }, [currentSessionId, selectedTemplateId]);
 
   const handleTranscriptionReady = useCallback((text: string) => {
     setTranscription(text);
@@ -276,10 +327,20 @@ export default function Session() {
                 onPatientSelect={handlePatientSelect}
               />
 
+              <SessionTemplateCard
+                templates={templates}
+                selectedTemplateId={selectedTemplateId}
+                isLoading={isLoadingTemplates}
+                isSaving={isSavingTemplate}
+                disabled={isTemplateLocked}
+                onTemplateChange={(templateId) => void handleTemplateChange(templateId)}
+              />
+
               <SessionRecorder
                 onTranscriptionReady={handleTranscriptionReady}
                 patientId={selectedPatient?.id || null}
                 isPatientSelected={!!selectedPatient}
+                plantillaAnamnesisId={selectedTemplateId || null}
                 onSessionCreated={handleSessionCreated}
               />
             </div>
@@ -397,6 +458,7 @@ export default function Session() {
                             sessionId={currentSessionId}
                             showCloseButton={false}
                             showTranscriptionPanel={false}
+                            templateSections={selectedTemplate?.secciones}
                           />
                         </div>
                       </div>

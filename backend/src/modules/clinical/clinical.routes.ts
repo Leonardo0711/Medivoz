@@ -4,7 +4,8 @@ import {
   createPatientSchema, 
   updatePatientSchema, 
   createConsultationSchema, 
-  updateConsultationSchema 
+  updateConsultationSchema,
+  updateDefaultAnamnesisTemplateSchema,
 } from "./clinical.schema.js";
 import { convertSchema } from "../../core/utils/schema.js";
 import { logger } from "../../core/utils/logger.js";
@@ -19,6 +20,23 @@ export async function clinicalRoutes(app: FastifyInstance) {
   });
 
   // --- Patients ---
+
+  app.get("/anamnesis-templates", async (request) => {
+    const doctorId = (request.user as any).sub;
+    return clinicalService.listAnamnesisTemplates(doctorId);
+  });
+
+  app.patch("/anamnesis-templates/default", {
+    schema: { body: convertSchema(updateDefaultAnamnesisTemplateSchema) }
+  }, async (request, reply) => {
+    const doctorId = (request.user as any).sub;
+    try {
+      const { plantillaAnamnesisId } = request.body as any;
+      return await clinicalService.setDefaultAnamnesisTemplate(doctorId, plantillaAnamnesisId);
+    } catch (error: any) {
+      return reply.code(400).send({ error: error.message });
+    }
+  });
 
   app.get("/patients", async (request) => {
     const doctorId = (request.user as any).sub;

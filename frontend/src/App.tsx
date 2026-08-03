@@ -25,6 +25,7 @@ const Patients = lazy(() => import("./pages/Patients"));
 const Session = lazy(() => import("./pages/Session"));
 const Agents = lazy(() => import("./pages/Agents"));
 const AgentDetail = lazy(() => import("./pages/AgentDetail"));
+const Templates = lazy(() => import("./pages/Templates"));
 const Evaluations = lazy(() => import("./pages/Evaluations"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -90,6 +91,7 @@ const App = () => {
                             <Route path="/history" element={<Navigate to="/patients" replace />} />
                             <Route path="/agents" element={<Agents />} />
                             <Route path="/agents/:id" element={<AgentDetail />} />
+                            <Route path="/templates" element={<Templates />} />
                           </Route>
                           <Route element={<RoleRoute allowedRoles={["evaluador", "administrador"]} />}>
                             <Route path="/evaluations" element={<Evaluations />} />

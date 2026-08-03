@@ -37,6 +37,9 @@ export const profiles = pgTable("perfiles_usuario", {
   especialidadId: integer("especialidad_id")
     .notNull()
     .references(() => specialities.id),
+  // The foreign key is defined in DB/10_fichas_por_especialidad.sql. Keeping
+  // this mapping reference-free avoids a circular module dependency with clinical.ts.
+  plantillaAnamnesisPredeterminadaId: uuid("plantilla_anamnesis_predeterminada_id"),
   urlAvatar: text("url_avatar"),
   createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),

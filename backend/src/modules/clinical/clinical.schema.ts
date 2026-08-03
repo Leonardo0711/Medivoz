@@ -26,3 +26,7 @@ export const updateConsultationSchema = z.object({
   finReal: z.string().optional(),
   transcripcionCompleta: z.string().optional(),
 });
+
+export const updateDefaultAnamnesisTemplateSchema = z.object({
+  plantillaAnamnesisId: z.string().uuid(),
+}).strict();

@@ -7,6 +7,7 @@ import { logger } from "@/utils/logger";
 interface UseSessionRecorderProps {
   patientId?: string | null;
   isPatientSelected: boolean;
+  plantillaAnamnesisId?: string | null;
   onTranscriptionReady: (transcription: string) => void;
   onSessionCreated?: (sessionId: string) => void;
 }
@@ -49,6 +50,7 @@ type WindowWithLegacyAudioContext = Window & typeof globalThis & {
 export function useSessionRecorder({
   patientId,
   isPatientSelected,
+  plantillaAnamnesisId,
   onTranscriptionReady,
   onSessionCreated,
 }: UseSessionRecorderProps): UseSessionRecorderReturn {
@@ -196,6 +198,7 @@ export function useSessionRecorder({
     try {
       const response = await api.post("/clinical/consultations", {
         pacienteId: patientId,
+        plantillaAnamnesisId: plantillaAnamnesisId || undefined,
         metadata: { source: "web_recorder" },
       });
 

@@ -9,6 +9,7 @@ import {
   userRoles,
   specialities,
 } from "../../db/schema/auth.js";
+import { anamnesisTemplates } from "../../db/schema/clinical.js";
 import { RegisterInput, LoginInput, CreateEvaluatorInput } from "./auth.schema.js";
 
 const registrationSpecialities = [
@@ -57,6 +58,7 @@ export class AuthService {
         nombreCompleto: profiles.nombreCompleto,
         especialidadId: profiles.especialidadId,
         especialidad: specialities.nombre,
+        plantillaAnamnesisPredeterminadaId: profiles.plantillaAnamnesisPredeterminadaId,
       })
       .from(profiles)
       .innerJoin(specialities, eq(profiles.especialidadId, specialities.id))
@@ -70,6 +72,7 @@ export class AuthService {
       nombreCompleto: profile?.nombreCompleto ?? null,
       especialidadId: profile?.especialidadId ?? null,
       especialidad: profile?.especialidad ?? null,
+      plantillaAnamnesisPredeterminadaId: profile?.plantillaAnamnesisPredeterminadaId ?? null,
     };
   }
 
@@ -137,10 +140,19 @@ export class AuthService {
       });
       if (!selectedSpeciality) throw new Error("La especialidad seleccionada no esta disponible");
 
+      const defaultTemplate = await tx.query.anamnesisTemplates.findFirst({
+        columns: { id: true },
+        where: and(
+          eq(anamnesisTemplates.especialidadId, finalEspecialidadId),
+          eq(anamnesisTemplates.esActiva, true)
+        ),
+      });
+
       await tx.insert(profiles).values({
         userId: newUser.id,
         nombreCompleto,
         especialidadId: finalEspecialidadId,
+        plantillaAnamnesisPredeterminadaId: defaultTemplate?.id ?? null,
       });
 
       await tx.insert(userRoles).values({

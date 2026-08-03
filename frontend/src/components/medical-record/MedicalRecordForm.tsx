@@ -27,6 +27,7 @@ import {
 import { RecordSummaryData, SectionMetaMap } from "@/hooks/medical-record/types";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnamnesisTemplateSection } from "@/types/anamnesis-templates";
 
 interface MedicalRecordFormData {
   motivo_consulta: string;
@@ -65,6 +66,7 @@ interface MedicalRecordFormProps {
   validationElapsedMs?: number;
   isValidationTiming?: boolean;
   hasValidationStarted?: boolean;
+  templateSections?: AnamnesisTemplateSection[];
 }
 
 const formatEditTime = (durationMs: number) => {
@@ -181,9 +183,13 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
   validationElapsedMs = 0,
   isValidationTiming = false,
   hasValidationStarted = false,
+  templateSections = [],
 }: MedicalRecordFormProps) {
   const [validatingField, setValidatingField] = useState<keyof MedicalRecordFormData | null>(null);
   const isModified = (field: keyof MedicalRecordFormData) => modifiedFields.has(field);
+  const templateSectionMap = new Map(
+    templateSections.map((section) => [section.seccion, section])
+  );
   const isLocked = (field: keyof MedicalRecordFormData) =>
     sectionMeta[field]?.estado === "bloqueada";
   const isReviewed = (field: keyof MedicalRecordFormData) =>
@@ -237,6 +243,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
     const isValidating = validatingField === field;
     const hasContent = hasAnythingToValidate(field);
     const canValidate = !locked && !reviewed;
+    const templateSection = templateSectionMap.get(field);
 
     return (
       <div
@@ -254,7 +261,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Label htmlFor={field} className="flex min-w-0 items-center gap-2 text-sm font-medium">
             <span className="shrink-0 text-primary">{fieldIcons[field]}</span>
-            <span className="truncate">{fieldLabels[field]}</span>
+            <span className="truncate">{templateSection?.etiqueta || fieldLabels[field]}</span>
           </Label>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -364,6 +371,12 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
             placeholder={placeholder}
             className="bg-background"
           />
+        )}
+
+        {templateSection?.descripcionIa && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {templateSection.descripcionIa}
+          </p>
         )}
 
         {pending && meta?.textoSugeridoIa && (

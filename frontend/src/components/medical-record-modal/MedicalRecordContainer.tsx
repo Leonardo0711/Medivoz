@@ -13,6 +13,7 @@ import { logger } from "@/utils/logger";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoaderCircle, Sparkles } from "lucide-react";
+import { AnamnesisTemplateSection } from "@/types/anamnesis-templates";
 
 interface MedicalRecordContainerProps {
   formData: MedicalRecordFormData;
@@ -55,6 +56,7 @@ interface MedicalRecordContainerProps {
   showCloseButton?: boolean;
   showTranscriptionPanel?: boolean;
   showTranscriptionSummary?: boolean;
+  templateSections?: AnamnesisTemplateSection[];
 }
 
 export const MedicalRecordContainer = memo(
@@ -92,6 +94,7 @@ export const MedicalRecordContainer = memo(
     showCloseButton = true,
     showTranscriptionPanel = true,
     showTranscriptionSummary = true,
+    templateSections,
   }: MedicalRecordContainerProps) {
     const { isAutoFilling, autoFillMedicalRecord } = useMedicalRecordAutoFill();
 
@@ -189,6 +192,7 @@ export const MedicalRecordContainer = memo(
             onBlockSection={onBlockSection}
             onRetrySection={onRetrySection}
             onRefineSection={onRefineSection}
+            templateSections={templateSections}
           />
         </div>
 
@@ -227,7 +231,8 @@ export const MedicalRecordContainer = memo(
       prevProps.sessionId === nextProps.sessionId &&
       prevProps.showCloseButton === nextProps.showCloseButton &&
       prevProps.showTranscriptionPanel === nextProps.showTranscriptionPanel &&
-      prevProps.showTranscriptionSummary === nextProps.showTranscriptionSummary
+      prevProps.showTranscriptionSummary === nextProps.showTranscriptionSummary &&
+      prevProps.templateSections === nextProps.templateSections
       // Note: Callbacks (handleChange, toggleTranscriptionView, onSave, onExport, etc.)
       // should be memoized with useCallback in parent component
     );

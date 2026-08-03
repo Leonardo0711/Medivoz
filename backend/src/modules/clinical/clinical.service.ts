@@ -1,7 +1,7 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { profiles } from "../../db/schema/auth.js";
-import { anamnesisTemplates, consultations, patients, temporalAudios } from "../../db/schema/clinical.js";
+import { profiles, specialities } from "../../db/schema/auth.js";
+import { anamnesisTemplateSections, anamnesisTemplates, consultations, patients, temporalAudios } from "../../db/schema/clinical.js";
 import { medicalRecords, medicalRecordSections } from "../../db/schema/scribe.js";
 import { logger } from "../../core/utils/logger.js";
 import { audioTemporalService } from "../scribe/audio-temporal.service.js";
@@ -21,7 +21,130 @@ const buildPatientCode = () => {
   return `PAC-${random}`.slice(0, 40);
 };
 
+const availableTemplateSpecialities = [
+  "Hematologia",
+  "Neurologia",
+  "Psiquiatria",
+  "Reumatologia",
+  "Endocrinologia",
+] as const;
+
 export class ClinicalService {
+  private async getAvailableAnamnesisTemplate(templateId: string) {
+    const [template] = await db
+      .select({
+        id: anamnesisTemplates.id,
+        especialidadId: anamnesisTemplates.especialidadId,
+        especialidad: specialities.nombre,
+        nombre: anamnesisTemplates.nombrePlantilla,
+        descripcion: anamnesisTemplates.descripcion,
+        numeroVersion: anamnesisTemplates.numeroVersion,
+      })
+      .from(anamnesisTemplates)
+      .innerJoin(specialities, eq(anamnesisTemplates.especialidadId, specialities.id))
+      .where(
+        and(
+          eq(anamnesisTemplates.id, templateId),
+          eq(anamnesisTemplates.esActiva, true),
+          eq(specialities.activa, true),
+          inArray(specialities.nombre, [...availableTemplateSpecialities])
+        )
+      )
+      .limit(1);
+
+    if (!template) throw new Error("La ficha seleccionada no esta disponible");
+    return template;
+  }
+
+  async listAnamnesisTemplates(doctorId: string) {
+    const profile = await db.query.profiles.findFirst({
+      columns: {
+        especialidadId: true,
+        plantillaAnamnesisPredeterminadaId: true,
+      },
+      where: eq(profiles.userId, doctorId),
+    });
+
+    if (!profile) throw new Error("Perfil de doctor no encontrado");
+
+    const templateRows = await db
+      .select({
+        id: anamnesisTemplates.id,
+        especialidadId: anamnesisTemplates.especialidadId,
+        especialidad: specialities.nombre,
+        nombre: anamnesisTemplates.nombrePlantilla,
+        descripcion: anamnesisTemplates.descripcion,
+        numeroVersion: anamnesisTemplates.numeroVersion,
+      })
+      .from(anamnesisTemplates)
+      .innerJoin(specialities, eq(anamnesisTemplates.especialidadId, specialities.id))
+      .where(
+        and(
+          eq(anamnesisTemplates.esActiva, true),
+          eq(specialities.activa, true),
+          inArray(specialities.nombre, [...availableTemplateSpecialities])
+        )
+      )
+      .orderBy(asc(specialities.nombre));
+
+    const sectionRows = templateRows.length
+      ? await db
+          .select({
+            plantillaId: anamnesisTemplateSections.plantillaAnamnesisId,
+            seccion: anamnesisTemplateSections.seccion,
+            etiqueta: anamnesisTemplateSections.etiquetaVisible,
+            descripcionIa: anamnesisTemplateSections.descripcionIa,
+            orden: anamnesisTemplateSections.orden,
+            esObligatoria: anamnesisTemplateSections.esObligatoria,
+          })
+          .from(anamnesisTemplateSections)
+          .where(
+            and(
+              inArray(anamnesisTemplateSections.plantillaAnamnesisId, templateRows.map((row) => row.id)),
+              eq(anamnesisTemplateSections.activa, true)
+            )
+          )
+          .orderBy(asc(anamnesisTemplateSections.orden))
+      : [];
+
+    const sectionsByTemplate = new Map<string, typeof sectionRows>();
+    for (const section of sectionRows) {
+      const current = sectionsByTemplate.get(section.plantillaId) || [];
+      current.push(section);
+      sectionsByTemplate.set(section.plantillaId, current);
+    }
+
+    const fallbackDefaultId = templateRows.find(
+      (template) => template.especialidadId === profile.especialidadId
+    )?.id ?? null;
+    const defaultId = templateRows.some(
+      (template) => template.id === profile.plantillaAnamnesisPredeterminadaId
+    )
+      ? profile.plantillaAnamnesisPredeterminadaId
+      : fallbackDefaultId;
+
+    return templateRows.map((template) => ({
+      ...template,
+      esPredeterminada: template.id === defaultId,
+      secciones: sectionsByTemplate.get(template.id) || [],
+    }));
+  }
+
+  async setDefaultAnamnesisTemplate(doctorId: string, templateId: string) {
+    const template = await this.getAvailableAnamnesisTemplate(templateId);
+    const [profile] = await db
+      .update(profiles)
+      .set({
+        plantillaAnamnesisPredeterminadaId: template.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, doctorId))
+      .returning({ userId: profiles.userId });
+
+    if (!profile) throw new Error("Perfil de doctor no encontrado");
+    return { plantillaAnamnesisId: template.id };
+  }
+
   async listPatients(doctorId: string, query?: unknown) {
     const trimmedQuery = normalizeQueryText(query);
     const conditions = [eq(patients.doctorId, doctorId)];
@@ -350,7 +473,9 @@ export class ClinicalService {
 
   async createConsultation(doctorId: string, data: any) {
     await this.getPatientById(data.pacienteId, doctorId);
-    const plantillaAnamnesisId = data.plantillaAnamnesisId ?? (await this.getDefaultAnamnesisTemplateId(doctorId));
+    const plantillaAnamnesisId = data.plantillaAnamnesisId
+      ? (await this.getAvailableAnamnesisTemplate(data.plantillaAnamnesisId)).id
+      : await this.getDefaultAnamnesisTemplateId(doctorId);
 
     return db.transaction(async (tx) => {
       const lockKey = `${doctorId}:${data.pacienteId}`;
@@ -401,7 +526,36 @@ export class ClinicalService {
 
     if (data.estado !== undefined) updateValues.estado = data.estado;
     if (data.plantillaAnamnesisId !== undefined) {
-      updateValues.plantillaAnamnesisId = data.plantillaAnamnesisId || null;
+      const currentConsultation = await db.query.consultations.findFirst({
+        columns: {
+          plantillaAnamnesisId: true,
+          transcripcion: true,
+          estadoAnamnesis: true,
+        },
+        where: and(eq(consultations.id, id), eq(consultations.doctorId, doctorId)),
+      });
+      if (!currentConsultation) throw new Error("Consulta no encontrada o no autorizada");
+
+      const nextTemplateId = data.plantillaAnamnesisId
+        ? (await this.getAvailableAnamnesisTemplate(data.plantillaAnamnesisId)).id
+        : null;
+      const templateChanged = currentConsultation.plantillaAnamnesisId !== nextTemplateId;
+
+      if (templateChanged) {
+        const existingRecord = await db.query.medicalRecords.findFirst({
+          columns: { id: true },
+          where: eq(medicalRecords.consultaId, id),
+        });
+        if (
+          existingRecord ||
+          currentConsultation.transcripcion?.trim() ||
+          currentConsultation.estadoAnamnesis !== "no_iniciada"
+        ) {
+          throw new Error("La ficha no puede cambiarse despues de iniciar la documentacion");
+        }
+      }
+
+      updateValues.plantillaAnamnesisId = nextTemplateId;
     }
     if (data.tipoConsulta !== undefined) updateValues.tipoConsulta = data.tipoConsulta;
     if (data.fecha !== undefined) updateValues.fecha = data.fecha ? new Date(data.fecha) : null;
@@ -435,11 +589,22 @@ export class ClinicalService {
 
   async getDefaultAnamnesisTemplateId(doctorId: string) {
     const profile = await db.query.profiles.findFirst({
-      columns: { especialidadId: true },
+      columns: {
+        especialidadId: true,
+        plantillaAnamnesisPredeterminadaId: true,
+      },
       where: eq(profiles.userId, doctorId),
     });
 
     if (!profile?.especialidadId) return null;
+
+    if (profile.plantillaAnamnesisPredeterminadaId) {
+      try {
+        return (await this.getAvailableAnamnesisTemplate(profile.plantillaAnamnesisPredeterminadaId)).id;
+      } catch {
+        // Fall back to the registered speciality if an old preference is no longer active.
+      }
+    }
 
     const template = await db.query.anamnesisTemplates.findFirst({
       columns: { id: true },

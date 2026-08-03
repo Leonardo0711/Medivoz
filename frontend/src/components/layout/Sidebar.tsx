@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   Cpu,
   Home,
   LogOut,
@@ -47,6 +48,7 @@ export function Sidebar() {
       { name: "Pacientes", href: "/patients", icon: Users },
       { name: "Consulta en vivo", href: "/session", icon: Mic },
       { name: "Agentes IA", href: "/agents", icon: Cpu },
+      { name: "Fichas", href: "/templates", icon: ClipboardList },
     ];
     return user?.rol === "administrador" ? [...clinicalItems, evaluationItem] : clinicalItems;
   }, [user?.rol]);

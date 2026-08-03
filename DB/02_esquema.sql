@@ -201,6 +201,7 @@ CREATE TABLE perfiles_usuario (
   usuario_id uuid NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
   nombre_completo text NOT NULL,
   especialidad_id integer NOT NULL REFERENCES catalogo_especialidades(id),
+  plantilla_anamnesis_predeterminada_id uuid,
   url_avatar text,
   creado_en timestamptz NOT NULL DEFAULT now(),
   actualizado_en timestamptz NOT NULL DEFAULT now()
@@ -252,6 +253,14 @@ CREATE TABLE secciones_plantilla_anamnesis (
 );
 
 COMMENT ON TABLE secciones_plantilla_anamnesis IS 'Secciones de una plantilla de anamnesis. Permite especializar la estructura mas adelante sin romper consultas previas.';
+
+ALTER TABLE perfiles_usuario
+  ADD CONSTRAINT fk_perfiles_usuario_plantilla_predeterminada
+  FOREIGN KEY (plantilla_anamnesis_predeterminada_id)
+  REFERENCES plantillas_anamnesis(id) ON DELETE SET NULL;
+
+COMMENT ON COLUMN perfiles_usuario.plantilla_anamnesis_predeterminada_id IS
+  'Ficha de anamnesis que se selecciona inicialmente al abrir una consulta del doctor.';
 
 -- =========================================================
 -- PACIENTES Y CONSULTAS
@@ -675,6 +684,9 @@ CREATE INDEX idx_sesiones_usuario_revocada_en
 
 CREATE INDEX idx_perfiles_usuario_especialidad_id
   ON perfiles_usuario (especialidad_id);
+
+CREATE INDEX idx_perfiles_usuario_plantilla_predeterminada
+  ON perfiles_usuario (plantilla_anamnesis_predeterminada_id);
 
 CREATE INDEX idx_roles_usuario_usuario_id
   ON roles_usuario (usuario_id);
