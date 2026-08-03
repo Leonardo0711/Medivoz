@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import {
   FileText,
   FlaskConical,
   ListChecks,
+  Loader2,
   Lock,
   RefreshCw,
   ScrollText,
@@ -42,6 +43,7 @@ interface MedicalRecordFormData {
 interface MedicalRecordFormProps {
   formData: MedicalRecordFormData;
   sectionMeta?: SectionMetaMap;
+  modifiedFields?: Set<keyof MedicalRecordFormData>;
   onChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
@@ -156,6 +158,7 @@ const fieldGroups: { id: string; label: string; fields: (keyof MedicalRecordForm
 export const MedicalRecordForm = memo(function MedicalRecordForm({
   formData,
   sectionMeta = {},
+  modifiedFields = new Set(),
   onChange,
   onAcceptSuggestion,
   onRejectSuggestion,
@@ -169,10 +172,12 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
   editElapsedMs = 0,
   isEditTiming = false,
 }: MedicalRecordFormProps) {
+  const [validatingField, setValidatingField] = useState<keyof MedicalRecordFormData | null>(null);
+  const isModified = (field: keyof MedicalRecordFormData) => modifiedFields.has(field);
   const isLocked = (field: keyof MedicalRecordFormData) =>
     sectionMeta[field]?.estado === "bloqueada";
   const isReviewed = (field: keyof MedicalRecordFormData) =>
-    sectionMeta[field]?.estado === "revisada";
+    sectionMeta[field]?.estado === "revisada" && !isModified(field);
   const hasPending = (field: keyof MedicalRecordFormData) => {
     const meta = sectionMeta[field];
     return Boolean(
@@ -199,13 +204,25 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
     recordSummary.resumenActual.trim() !== recordSummary.resumenSugeridoIa?.trim()
   );
 
+  const validateField = async (field: keyof MedicalRecordFormData) => {
+    if (!onAcceptSuggestion || validatingField) return;
+    setValidatingField(field);
+    try {
+      await onAcceptSuggestion(field);
+    } finally {
+      setValidatingField(null);
+    }
+  };
+
   const renderField = ({ field, placeholder, rows, wide }: FieldConfig) => {
     const meta = sectionMeta[field];
     const locked = isLocked(field);
     const pending = hasPending(field);
+    const modified = isModified(field);
     const editedOverSuggestion = pending && hasDoctorEditOverSuggestion(field);
     const reviewed = isReviewed(field);
-    const canValidate = hasAnythingToValidate(field) && !locked;
+    const isValidating = validatingField === field;
+    const canValidate = hasAnythingToValidate(field) && !locked && !reviewed;
 
     return (
       <div
@@ -213,7 +230,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
         className={cn(
           "space-y-2 rounded-md border p-3 transition-colors",
           wide && "md:col-span-2",
-          pending
+          pending || modified
             ? "border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20"
             : reviewed
               ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-950/20"
@@ -227,8 +244,8 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
           </Label>
 
           <div className="flex shrink-0 items-center gap-2">
-            {editedOverSuggestion ? (
-              <Badge className="h-6 bg-sky-600 text-[11px] text-white">Editado</Badge>
+            {modified ? (
+              <Badge className="h-6 bg-sky-600 text-[11px] text-white">Cambios sin validar</Badge>
             ) : (
               pending && (
                 <Badge className="h-6 bg-amber-500 text-[11px] text-white">IA pendiente</Badge>
@@ -278,22 +295,32 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
               variant={reviewed ? "secondary" : "outline"}
               size="sm"
               className="h-8 px-2 text-xs"
-              onClick={() => onAcceptSuggestion?.(field)}
-              disabled={!canValidate}
+              onClick={() => void validateField(field)}
+              disabled={!canValidate || isValidating}
               title={
-                !canValidate
+                reviewed
+                  ? "Esta sección ya está validada"
+                  : !canValidate
                   ? "Primero debe existir texto o sugerencia IA"
-                  : editedOverSuggestion
+                  : modified || editedOverSuggestion
                     ? "Validar el texto editado"
                     : "Validar esta sección"
               }
             >
-              {reviewed ? (
+              {isValidating ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : reviewed ? (
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
               ) : (
                 <Check className="mr-1 h-3.5 w-3.5" />
               )}
-              {editedOverSuggestion ? "Validar edicion" : "Validar"}
+              {isValidating
+                ? "Validando..."
+                : reviewed
+                  ? "Validado"
+                  : modified || editedOverSuggestion
+                    ? "Validar cambios"
+                    : "Validar"}
             </Button>
           </div>
         </div>

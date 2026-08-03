@@ -30,6 +30,9 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
   const [recordExists, setRecordExists] = useState(false);
   const [recordFinalized, setRecordFinalized] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [modifiedFields, setModifiedFields] = useState<Set<keyof MedicalRecordFormData>>(
+    () => new Set()
+  );
   const [sectionMeta, setSectionMeta] = useState<SectionMetaMap>({});
   const [summaryData, setSummaryData] = useState<
     Partial<Record<keyof MedicalRecordFormData, string>>
@@ -168,6 +171,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
     setHasUnsavedChanges(false);
     setRecordFinalized(false);
+    setModifiedFields(new Set());
     const loadAllData = async () => {
       setIsLoading(true);
       try {
@@ -205,6 +209,11 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
       const { name, value } = e.target;
       const field = name as keyof MedicalRecordFormData;
       dirtyFieldsRef.current.add(field);
+      setModifiedFields((previous) => {
+        const next = new Set(previous);
+        next.add(field);
+        return next;
+      });
       markRecordChanged();
       markEditActivity(field);
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -237,46 +246,60 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         ...prev,
         [field]: summary,
       }));
-      const timer = await snapshotEditTimer();
-      await reviewMedicalRecordSection(sessionId, field, "accept", {
-        contenido: currentText,
-        resumenActual: summary,
-        duracionEdicionMs: timer.fieldDurationsMs[field] || 0,
-        sesionEdicionId: timer.editSessionId || undefined,
-      });
-      dirtyFieldsRef.current.delete(field);
-      setRecordFinalized(false);
-      clearFieldDuration(field);
-      logger.info("Medical record section accepted", {
-        sessionId,
-        field,
-        hadSuggestion: Boolean(suggestion),
-        doctorEditedSuggestion,
-        hadSummary: Boolean(summary.trim()),
-      });
-      setSectionMeta((prev) => ({
-        ...prev,
-        [field]: prev[field]
-          ? {
-              ...prev[field]!,
-              textoActual: currentText,
-              textoSugeridoIa: null,
-              resumenActual: summary || prev[field]!.resumenActual,
-              resumenSugeridoIa: null,
-              estado: "revisada",
-            }
-          : {
-              nombre: field,
-              textoActual: currentText,
-              textoSugeridoIa: null,
-              resumenActual: summary,
-              resumenSugeridoIa: null,
-              estado: "revisada",
-              confianza: null,
-              origenDato: null,
-            },
-      }));
-      return true;
+      try {
+        const timer = await snapshotEditTimer();
+        const reviewedSection = await reviewMedicalRecordSection(sessionId, field, "accept", {
+          contenido: currentText,
+          resumenActual: summary,
+          duracionEdicionMs: timer.fieldDurationsMs[field] || 0,
+          sesionEdicionId: timer.editSessionId || undefined,
+        });
+        if (!reviewedSection) throw new Error("La API no devolvió la sección validada");
+
+        dirtyFieldsRef.current.delete(field);
+        setModifiedFields((previous) => {
+          const next = new Set(previous);
+          next.delete(field);
+          return next;
+        });
+        setRecordFinalized(false);
+        clearFieldDuration(field);
+        logger.info("Medical record section accepted", {
+          sessionId,
+          field,
+          hadSuggestion: Boolean(suggestion),
+          doctorEditedSuggestion,
+          hadSummary: Boolean(summary.trim()),
+        });
+        setSectionMeta((prev) => ({
+          ...prev,
+          [field]: prev[field]
+            ? {
+                ...prev[field]!,
+                textoActual: currentText,
+                textoSugeridoIa: null,
+                resumenActual: summary || prev[field]!.resumenActual,
+                resumenSugeridoIa: null,
+                estado: "revisada",
+              }
+            : {
+                nombre: field,
+                textoActual: currentText,
+                textoSugeridoIa: null,
+                resumenActual: summary,
+                resumenSugeridoIa: null,
+                estado: "revisada",
+                confianza: null,
+                origenDato: null,
+              },
+        }));
+        toast.success("Sección validada correctamente");
+        return true;
+      } catch (error) {
+        logger.error("Error validating medical record section", { sessionId, field, error });
+        toast.error("No se pudo validar la sección. Inténtalo nuevamente.");
+        return false;
+      }
     },
     [clearFieldDuration, formData, sectionMeta, sessionId, snapshotEditTimer, summaryData]
   );
@@ -476,6 +499,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
       if (saved) {
         dirtyFieldsRef.current.clear();
         dirtyRecordSummaryRef.current = { resumenActual: false, notaEssi: false };
+        setModifiedFields(new Set());
         setRecordExists(true);
         setHasUnsavedChanges(false);
         setRecordFinalized(true);
@@ -487,6 +511,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
           ),
         });
         resetEditTimerAfterSave();
+        await loadRecordData();
         await refreshValidation();
       }
       return saved;
@@ -502,6 +527,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     summaryData,
     sectionMeta,
     recordSummary,
+    loadRecordData,
     refreshValidation,
     resetEditTimerAfterSave,
     snapshotEditTimer,
@@ -545,6 +571,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     recordExists,
     recordFinalized,
     hasUnsavedChanges,
+    modifiedFields,
     refreshTranscription,
     refreshRecordData: loadRecordData,
     editElapsedMs,

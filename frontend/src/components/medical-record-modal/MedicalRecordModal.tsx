@@ -42,6 +42,7 @@ export function MedicalRecordModal({
     handleRecordSummaryChange,
     handleEssiNoteChange,
     sectionMeta,
+    modifiedFields,
     validationWarnings,
     handleAcceptSuggestion,
     handleRejectSuggestion,
@@ -124,6 +125,7 @@ export function MedicalRecordModal({
               toggleTranscriptionView={toggleTranscriptionView}
               handleChange={handleChange}
               sectionMeta={sectionMeta}
+              modifiedFields={modifiedFields}
               recordSummary={recordSummary}
               onRecordSummaryChange={handleRecordSummaryChange}
               onEssiNoteChange={handleEssiNoteChange}

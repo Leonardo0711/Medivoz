@@ -58,6 +58,7 @@ export default function Session() {
     handleExportPDF,
     setFormData,
     sectionMeta,
+    modifiedFields,
     recordSummary,
     validationWarnings,
     handleRecordSummaryChange,
@@ -363,6 +364,7 @@ export default function Session() {
                             toggleTranscriptionView={toggleTranscriptionView}
                             handleChange={handleChange}
                             sectionMeta={sectionMeta}
+                            modifiedFields={modifiedFields}
                             recordSummary={recordSummary}
                             onRecordSummaryChange={handleRecordSummaryChange}
                             onEssiNoteChange={handleEssiNoteChange}

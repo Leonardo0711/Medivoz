@@ -25,6 +25,7 @@ interface MedicalRecordContainerProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
   sectionMeta?: SectionMetaMap;
+  modifiedFields?: Set<keyof MedicalRecordFormData>;
   recordSummary?: RecordSummaryData;
   onRecordSummaryChange?: (value: string) => void;
   onEssiNoteChange?: (value: string) => void;
@@ -60,6 +61,7 @@ export const MedicalRecordContainer = memo(
     toggleTranscriptionView,
     handleChange,
     sectionMeta,
+    modifiedFields,
     recordSummary,
     onRecordSummaryChange,
     onEssiNoteChange,
@@ -162,6 +164,7 @@ export const MedicalRecordContainer = memo(
           <MedicalRecordForm
             formData={formData}
             sectionMeta={sectionMeta}
+            modifiedFields={modifiedFields}
             recordSummary={recordSummary}
             onRecordSummaryChange={onRecordSummaryChange}
             onEssiNoteChange={onEssiNoteChange}
