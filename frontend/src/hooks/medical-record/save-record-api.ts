@@ -126,12 +126,12 @@ export const saveMedicalRecord = async (
       secciones,
     });
 
-    toast.success("Ficha medica guardada exitosamente");
+    toast.success("Ficha médica guardada exitosamente");
     return true;
   } catch (error: unknown) {
     logger.error("Error saving medical record:", error);
     const message = getApiErrorMessage(error, "Error desconocido");
-    toast.error(`Error al guardar la ficha medica: ${message}`);
+    toast.error(`Error al guardar la ficha médica: ${message}`);
     return false;
   } finally {
     setIsSaving(false);

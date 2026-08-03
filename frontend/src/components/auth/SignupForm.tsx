@@ -49,7 +49,7 @@ export function SignupForm() {
 
     if (password.length < 8) {
       return {
-        message: "La contrasena es corta. Se recomienda minimo 8 caracteres.",
+        message: "La contraseña es corta. Se recomienda mínimo 8 caracteres.",
         state: "weak" as const,
       };
     }
@@ -72,12 +72,12 @@ export function SignupForm() {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      toast.error("Las contrasenas no coinciden");
+      toast.error("Las contraseñas no coinciden");
       return;
     }
 
     if (password.length < 8) {
-      toast.error("La contrasena debe tener al menos 8 caracteres");
+      toast.error("La contraseña debe tener al menos 8 caracteres");
       return;
     }
 
@@ -192,7 +192,7 @@ export function SignupForm() {
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Crea una contrasena segura"
+              placeholder="Crea una contraseña segura"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-12 pl-10 pr-12"
@@ -205,7 +205,7 @@ export function SignupForm() {
               size="icon"
               className="absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
@@ -225,14 +225,14 @@ export function SignupForm() {
 
         <div className="space-y-2">
           <Label htmlFor="confirmPassword" className="text-sm font-medium">
-            Confirmar contrasena
+            Confirmar contraseña
           </Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="confirmPassword"
               type={showConfirmPassword ? "text" : "password"}
-              placeholder="Repite la contrasena"
+              placeholder="Repite la contraseña"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="h-12 pl-10 pr-12"
@@ -245,7 +245,7 @@ export function SignupForm() {
               size="icon"
               className="absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => setShowConfirmPassword((prev) => !prev)}
-              aria-label={showConfirmPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             >
               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>

@@ -215,7 +215,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         : sectionMeta[field]?.resumenSugeridoIa || summaryData[field] || "";
 
       if (!currentText.trim() && !summary.trim()) {
-        toast.warning("Primero debe existir texto o una sugerencia IA para validar esta seccion.");
+        toast.warning("Primero debe existir texto o una sugerencia IA para validar esta sección.");
         return false;
       }
 
@@ -368,7 +368,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
           jobId: result?.job?.jobId,
           state: result?.job?.state,
         });
-        toast.info("IA reintentando esta seccion. Actualizare la ficha en unos segundos.");
+        toast.info("IA reintentando esta sección. Actualizaré la ficha en unos segundos.");
         window.setTimeout(() => {
           void loadRecordData();
           void refreshValidation();
@@ -376,7 +376,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         return true;
       } catch (error) {
         logger.error("Error retrying medical record section", { sessionId, field, error });
-        toast.error("No se pudo reintentar esta seccion con IA.");
+        toast.error("No se pudo reintentar esta sección con IA.");
         return false;
       }
     },
@@ -390,7 +390,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         const result = await refineMedicalRecordSection(sessionId, field, "formato_institucional");
         const suggestion = result?.suggestion?.trim?.() || "";
         if (!suggestion) {
-          toast.warning("La IA no pudo proponer una mejora para esta seccion.");
+          toast.warning("La IA no pudo proponer una mejora para esta sección.");
           return false;
         }
         setSectionMeta((prev) => ({
@@ -422,7 +422,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         return true;
       } catch (error) {
         logger.error("Error refining medical record section", { sessionId, field, error });
-        toast.error("No se pudo mejorar esta seccion con IA.");
+        toast.error("No se pudo mejorar esta sección con IA.");
         return false;
       }
     },

@@ -13,7 +13,7 @@ export const PatientInfoCard = memo(function PatientInfoCard({ name, age }: Pati
         <div className="rounded-full bg-primary/10 p-1.5">
           <UserRound className="h-5 w-5 text-primary" />
         </div>
-        <h4 className="font-semibold text-foreground">Informacion del paciente</h4>
+        <h4 className="font-semibold text-foreground">Información del paciente</h4>
       </div>
 
       <div className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm md:grid-cols-2">
@@ -23,7 +23,7 @@ export const PatientInfoCard = memo(function PatientInfoCard({ name, age }: Pati
         </div>
         <div className="flex items-center gap-2 py-1">
           <span className="font-medium text-muted-foreground">Edad:</span>
-          <span className="text-foreground">{age !== null ? `${age} anos` : "No especificada"}</span>
+          <span className="text-foreground">{age !== null ? `${age} años` : "No especificada"}</span>
         </div>
       </div>
     </div>

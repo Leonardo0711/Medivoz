@@ -1,8 +1,8 @@
 export const ProcessSection = () => {
   const steps = [
     "Selecciona un paciente desde tu panel",
-    "Inicia la grabacion de la consulta",
-    "La transcripcion aparece en tiempo real",
+    "Inicia la grabación de la consulta",
+    "La transcripción aparece en tiempo real",
     "La ficha clinica se completa con asistencia IA",
   ];
 

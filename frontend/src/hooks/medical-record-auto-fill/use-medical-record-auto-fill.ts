@@ -15,12 +15,12 @@ export function useMedicalRecordAutoFill() {
   ): Promise<MedicalRecordData | null> => {
     if (!transcription || transcription.trim().length < 20) {
       logger.error("Transcription too short for auto-fill", { length: transcription?.length || 0 });
-      toast.error("La transcripcion es demasiado corta para ser analizada");
+      toast.error("La transcripción es demasiado corta para ser analizada");
       return null;
     }
 
     setIsAutoFilling(true);
-    toast.info("Analizando transcripcion con IA...");
+    toast.info("Analizando transcripción con IA...");
 
     try {
       const { controller, clearTimeout } = createTimeoutController(90000);
@@ -51,7 +51,7 @@ export function useMedicalRecordAutoFill() {
             ? "No hay conexion con el servidor."
             : errorMessage.includes("401")
               ? "Tu sesion expiro. Vuelve a iniciar sesion."
-              : "No se pudo procesar la transcripcion con IA.";
+              : "No se pudo procesar la transcripción con IA.";
         toast.error(friendlyMessage);
       }
       return null;

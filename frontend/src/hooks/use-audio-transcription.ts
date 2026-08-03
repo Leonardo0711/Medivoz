@@ -49,7 +49,7 @@ export function useAudioTranscription({
 
     if (audioBlob.size === 0) {
       logger.error("Audio blob is empty (size: 0)");
-      toast.error("La grabacion de audio esta vacia");
+      toast.error("La grabación de audio está vacía");
       return "";
     }
 

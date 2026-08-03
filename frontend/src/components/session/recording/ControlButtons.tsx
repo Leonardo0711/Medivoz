@@ -43,7 +43,7 @@ export function ControlButtons({
           disabled={permissionDenied}
         >
           <Play className="mr-3 h-6 w-6" />
-          Iniciar grabacion
+          Iniciar grabación
         </Button>
       )}
 
@@ -56,11 +56,11 @@ export function ControlButtons({
             className="border-amber-500 text-amber-500 hover:bg-amber-50"
           >
             <Pause className="mr-2 h-4 w-4" />
-            Pausar grabacion
+            Pausar grabación
           </Button>
           <Button variant="destructive" size="sm" onClick={onStopRecording}>
             <Square className="mr-2 h-4 w-4" />
-            Detener grabacion
+            Detener grabación
           </Button>
         </>
       )}
@@ -74,11 +74,11 @@ export function ControlButtons({
             onClick={onResumeRecording}
           >
             <Play className="mr-3 h-6 w-6" />
-            Reanudar grabacion
+            Reanudar grabación
           </Button>
           <Button variant="destructive" size="lg" onClick={onStopRecording}>
             <Square className="mr-2 h-4 w-4" />
-            Detener grabacion
+            Detener grabación
           </Button>
         </>
       )}

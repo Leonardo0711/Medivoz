@@ -103,7 +103,7 @@ export default function Session() {
 
   const handleSessionCreated = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
-    toast.success(`Sesion ${sessionId} iniciada correctamente`);
+    toast.success(`Sesión ${sessionId} iniciada correctamente`);
   }, []);
 
   const handleTranscriptionReady = useCallback((text: string) => {
@@ -201,10 +201,10 @@ export default function Session() {
                   <span className="rounded-md bg-primary/10 p-1.5">
                     <Stethoscope className="h-5 w-5 text-primary" />
                   </span>
-                  Sesion de consulta
+                  Sesión de consulta
                 </h1>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Gestion integral de consulta medica asistida por IA.
+                  Gestión integral de consulta médica asistida por IA.
                 </p>
               </div>
 
@@ -212,7 +212,7 @@ export default function Session() {
                 <div className="animate-in slide-in-from-right-5 flex items-center gap-2 rounded-full border border-border/50 bg-muted/40 px-3 py-1.5">
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-xs font-medium text-muted-foreground">
-                    Sesion activa:
+                    Sesión activa:
                     <span className="ml-1 font-mono text-foreground">
                       {currentSessionId.substring(0, 8)}
                     </span>
@@ -249,7 +249,7 @@ export default function Session() {
                         Historia clinica electronica
                       </CardTitle>
                       <CardDescription className="mt-0.5 text-xs">
-                        Documentacion automatica estructurada basada en la transcripcion.
+                        Documentación automática estructurada basada en la transcripción.
                       </CardDescription>
                     </div>
                     {recordExists && (
@@ -294,7 +294,7 @@ export default function Session() {
                     </TabsTrigger>
                     <TabsTrigger value="transcripcion" className="gap-2">
                       <FileText className="h-4 w-4" />
-                      Transcripcion en vivo
+                      Transcripción en vivo
                       <span className="text-[10px] text-muted-foreground">
                         {transcription.length}
                       </span>

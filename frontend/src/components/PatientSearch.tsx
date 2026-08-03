@@ -63,7 +63,7 @@ export function PatientSearch({ onPatientSelect, selectedPatient }: PatientSearc
     onPatientSelect(null);
   };
 
-  const getPatientIdentifier = (patient: Patient) => patient.dni || patient.codigoPaciente || "Sin codigo";
+  const getPatientIdentifier = (patient: Patient) => patient.dni || patient.codigoPaciente || "Sin código";
   
   const handlePatientCreated = () => {
     toast.success("Paciente creado. Ahora puedes seleccionarlo en la búsqueda.");
@@ -94,7 +94,7 @@ export function PatientSearch({ onPatientSelect, selectedPatient }: PatientSearc
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar paciente por nombre, DNI o codigo"
+                placeholder="Buscar paciente por nombre, DNI o código"
                 className="pl-8"
                 value={searchQuery}
                 onChange={handleInputChange}

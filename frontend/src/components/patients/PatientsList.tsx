@@ -63,7 +63,7 @@ export function PatientsList({
               <>
                 <h3 className="text-lg font-semibold text-foreground">No hay pacientes registrados</h3>
                 <p className="text-sm text-muted-foreground">
-                  Comienza agregando tu primer paciente para crear sesiones medicas.
+                  Comienza agregando tu primer paciente para crear sesiones médicas.
                 </p>
               </>
             )}
@@ -99,7 +99,7 @@ export function PatientsList({
               <TableHead className="font-semibold">DNI</TableHead>
               <TableHead className="font-semibold">Edad</TableHead>
               <TableHead className="font-semibold">Ultima visita</TableHead>
-              <TableHead className="font-semibold">Ficha medica</TableHead>
+              <TableHead className="font-semibold">Ficha médica</TableHead>
               <TableHead className="pr-6 text-right font-semibold">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -125,7 +125,7 @@ export function PatientsList({
                 </TableCell>
                 <TableCell>
                   {patient.edad ? (
-                    `${patient.edad} anos`
+                    `${patient.edad} años`
                   ) : (
                     <span className="text-xs italic text-muted-foreground">N/A</span>
                   )}

@@ -66,7 +66,7 @@ export const SessionRecorder = memo(
           transcription ? `${transcription.substring(0, 100)}...` : "Empty"
         );
         if (!transcription) {
-          toast.error("No se pudo obtener la transcripcion");
+          toast.error("No se pudo obtener la transcripción");
           audioProcessingRef.current = false;
           return;
         }
@@ -127,7 +127,7 @@ export const SessionRecorder = memo(
 
           if (!transcription) {
             audioProcessingRef.current = false;
-            toast.error("No se pudo obtener la transcripcion. Intente grabar nuevamente.");
+            toast.error("No se pudo obtener la transcripción. Intente grabar nuevamente.");
           }
         } catch (error) {
           logger.error("Error during transcription:", error);
@@ -170,9 +170,9 @@ export const SessionRecorder = memo(
             await updateSessionWithTranscription(transcription, currentDbSessionId);
             setAudioTranscription(transcription);
             onTranscriptionReady(transcription);
-            toast.success("Transcripcion completada exitosamente");
+            toast.success("Transcripción completada exitosamente");
           } else if (!transcription) {
-            toast.error("No se pudo obtener la transcripcion del audio");
+            toast.error("No se pudo obtener la transcripción del audio");
           }
         } catch (error) {
           logger.error("Error transcribing uploaded file:", error);

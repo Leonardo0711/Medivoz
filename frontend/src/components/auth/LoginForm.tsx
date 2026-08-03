@@ -91,7 +91,7 @@ export function LoginForm() {
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="Ingresa tu contrasena"
+              placeholder="Ingresa tu contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-12 pl-10 pr-12"
@@ -104,7 +104,7 @@ export function LoginForm() {
               size="icon"
               className="absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>

@@ -94,7 +94,7 @@ const fieldIcons: Record<keyof MedicalRecordFormData, React.ReactNode> = {
 const originLabels: Record<string, string> = {
   referido_paciente: "Paciente",
   dicho_familiar: "Familiar",
-  indicado_medico: "Medico",
+  indicado_medico: "Médico",
   no_determinado: "Origen no claro",
 };
 
@@ -258,7 +258,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
               className="h-8 w-8"
               onClick={() => onRetrySection?.(field)}
               disabled={locked}
-              title="Reintentar IA solo para esta seccion"
+              title="Reintentar IA solo para esta sección"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -285,7 +285,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
                   ? "Primero debe existir texto o sugerencia IA"
                   : editedOverSuggestion
                     ? "Validar el texto editado"
-                    : "Validar esta seccion"
+                    : "Validar esta sección"
               }
             >
               {reviewed ? (
@@ -369,7 +369,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
               className={isEditTiming ? "border-sky-300 bg-sky-50 text-sky-800" : ""}
             >
               <Clock className="mr-1 h-3.5 w-3.5" />
-              {isEditTiming ? "Edicion activa" : "Edicion pausada"} {formatEditTime(editElapsedMs)}
+              {isEditTiming ? "Edición activa" : "Edición pausada"} {formatEditTime(editElapsedMs)}
             </Badge>
           )}
           <Badge variant="outline">
@@ -459,7 +459,7 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
                   Texto registrado en ESSI
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Pega exactamente el unico parrafo que escribiste en ESSI para la comparacion PDQI-9.
+                  Pega exactamente el único párrafo que escribiste en ESSI para la comparación PDQI-9.
                 </p>
               </div>
               <Textarea

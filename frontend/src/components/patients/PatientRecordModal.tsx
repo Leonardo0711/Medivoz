@@ -51,11 +51,11 @@ type ScribeRecord = {
 
 const fieldOrder: Array<{ key: keyof MedicalRecordFormData; label: string; icon: JSX.Element }> = [
   { key: "motivo_consulta", label: "Motivo de consulta", icon: <AlertCircle className="h-4 w-4" /> },
-  { key: "historia_cronologica", label: "Historia cronologica", icon: <History className="h-4 w-4" /> },
+  { key: "historia_cronologica", label: "Historia cronológica", icon: <History className="h-4 w-4" /> },
   { key: "tiempo_enfermedad", label: "Tiempo de enfermedad", icon: <Clock className="h-4 w-4" /> },
   { key: "forma_inicio", label: "Forma de inicio", icon: <Clock className="h-4 w-4" /> },
   { key: "curso_enfermedad", label: "Curso de enfermedad", icon: <Clock className="h-4 w-4" /> },
-  { key: "sintomas_principales", label: "Sintomas principales", icon: <FileText className="h-4 w-4" /> },
+  { key: "sintomas_principales", label: "Síntomas principales", icon: <FileText className="h-4 w-4" /> },
   { key: "antecedentes", label: "Antecedentes", icon: <Brain className="h-4 w-4" /> },
   { key: "estado_funcional_basal", label: "Estado funcional basal", icon: <Brain className="h-4 w-4" /> },
   { key: "estudios_previos", label: "Estudios previos", icon: <FileSearch className="h-4 w-4" /> },
@@ -140,7 +140,7 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
       });
     } catch (error) {
       logger.error("Error fetching medical record:", error);
-      toast.error("No se pudo cargar la ficha medica del paciente");
+      toast.error("No se pudo cargar la ficha médica del paciente");
       setRecord(null);
     } finally {
       setIsLoading(false);
@@ -149,7 +149,7 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
 
   const renderField = (label: string, value: string, icon: JSX.Element) => {
     const hasValue = Boolean(value?.trim());
-    const text = hasValue ? value : "Sin informacion registrada";
+    const text = hasValue ? value : "Sin información registrada";
 
     return (
       <div className="space-y-2">
@@ -179,18 +179,18 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
                 <span className="rounded-xl bg-primary/10 p-2 text-primary">
                   <FileText className="h-6 w-6" />
                 </span>
-                Historia Clinica
+                Historia Clínica
               </DialogTitle>
               <DialogDescription className="mt-1 flex flex-wrap items-center gap-2">
                 {patient ? (
                   <>
                     <span className="font-semibold text-foreground">{patient.nombre}</span>
                     <span className="rounded-md border bg-background px-2 py-0.5 font-mono text-xs">
-                      {patient.dni ? "DNI" : "Codigo"}: {patient.dni || patient.codigoPaciente || "Sin codigo"}
+                      {patient.dni ? "DNI" : "Código"}: {patient.dni || patient.codigoPaciente || "Sin código"}
                     </span>
                   </>
                 ) : (
-                  "Cargando informacion..."
+                  "Cargando información..."
                 )}
               </DialogDescription>
             </div>
@@ -213,7 +213,7 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
             {isLoading ? (
               <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <p className="text-sm">Cargando ficha medica...</p>
+                <p className="text-sm">Cargando ficha médica...</p>
               </div>
             ) : record ? (
               <div className="grid gap-6">
@@ -245,7 +245,7 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold text-foreground">Sin ficha registrada</h3>
                   <p className="text-sm">
-                    Este paciente aun no tiene una ficha generada. Inicia una consulta y guarda la anamnesis para verla aqui.
+                    Este paciente aún no tiene una ficha generada. Inicia una consulta y guarda la anamnesis para verla aquí.
                   </p>
                 </div>
               </div>
@@ -255,7 +255,7 @@ export function PatientRecordModal({ open, onOpenChange, patient }: PatientRecor
 
         <DialogFooter className="shrink-0 border-t bg-muted/20 px-6 py-4 sm:justify-between">
           <div className="text-xs text-muted-foreground">
-            {record?.sesion_id ? `Sesion: ${record.sesion_id}` : ""}
+            {record?.sesion_id ? `Sesión: ${record.sesion_id}` : ""}
           </div>
           <Button onClick={() => onOpenChange(false)}>Cerrar ficha</Button>
         </DialogFooter>

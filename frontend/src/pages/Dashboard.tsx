@@ -104,7 +104,7 @@ export default function Dashboard() {
   const quickActions = [
     {
       title: "Nueva sesion",
-      description: "Iniciar grabacion y transcripcion de consulta medica",
+      description: "Iniciar grabación y transcripción de consulta médica",
       href: "/session",
       icon: Mic,
       iconColor: "text-primary",
@@ -120,7 +120,7 @@ export default function Dashboard() {
     },
     {
       title: "Historial",
-      description: "Revisar sesiones pasadas y fichas medicas",
+      description: "Revisar sesiones pasadas y fichas médicas",
       href: "/history",
       icon: History,
       iconColor: "text-violet-600 dark:text-violet-400",

@@ -10,7 +10,7 @@ export const FeaturesSection = () => {
   const features: Feature[] = [
     {
       title: "Transcripcion en vivo",
-      description: "Convierte la consulta medica en texto estructurado en tiempo real.",
+      description: "Convierte la consulta médica en texto estructurado en tiempo real.",
       icon: Mic,
     },
     {
@@ -20,7 +20,7 @@ export const FeaturesSection = () => {
     },
     {
       title: "Prellenado inteligente",
-      description: "Completa la ficha medica con informacion relevante y trazable.",
+      description: "Completa la ficha médica con información relevante y trazable.",
       icon: ClipboardEdit,
     },
     {

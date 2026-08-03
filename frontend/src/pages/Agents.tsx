@@ -31,7 +31,7 @@ export default function Agents() {
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold tracking-tight text-foreground">Agentes activos</h2>
                   <p className="max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-                    Gestiona los agentes de inteligencia artificial que procesan tus consultas medicas.
+                    Gestiona los agentes de inteligencia artificial que procesan tus consultas médicas.
                   </p>
                 </div>
               </div>

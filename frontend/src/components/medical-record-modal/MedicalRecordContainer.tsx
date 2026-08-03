@@ -137,7 +137,7 @@ export const MedicalRecordContainer = memo(
           ) : showTranscriptionSummary ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Transcripcion</span>
+                <span>Transcripción</span>
                 <Badge variant="outline" className="bg-background">
                   {(fullTranscription?.length || 0).toLocaleString()} caracteres
                 </Badge>

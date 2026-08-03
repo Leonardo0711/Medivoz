@@ -80,7 +80,7 @@ export function AgentFlow({ readOnly = false }: AgentFlowProps) {
         </p>
         {!loading && (
           <p className="max-w-xl text-xs text-muted-foreground/80">
-            La transcripcion y el autollenado clinico base siguen funcionando. Esta vista es para
+            La transcripción y el autollenado clínico base siguen funcionando. Esta vista es para
             orquestar agentes personalizados cuando quieras ajustar prompts o flujos avanzados.
           </p>
         )}

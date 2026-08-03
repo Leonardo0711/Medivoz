@@ -8,7 +8,7 @@ export const CtaSection = () => {
       <div className="container relative z-10 mx-auto max-w-3xl text-center">
         <h2 className="mb-4 text-4xl font-bold tracking-tight">Transforma tu practica clinica hoy</h2>
         <p className="mb-8 text-lg leading-relaxed text-muted-foreground sm:text-xl">
-          Unete a los equipos medicos que ya optimizan su consulta con un flujo digital moderno y trazable.
+          Únete a los equipos médicos que ya optimizan su consulta con un flujo digital moderno y trazable.
         </p>
         <div className="flex justify-center">
           <Link to="/signup">

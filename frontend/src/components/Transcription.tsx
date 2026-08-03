@@ -38,7 +38,7 @@ export function Transcription({ transcription }: TranscriptionProps) {
               <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
               <h3 className="font-medium text-foreground">Esperando voz</h3>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Al iniciar la grabacion, los fragmentos confirmados apareceran aqui durante la consulta.
+                Al iniciar la grabación, los fragmentos confirmados aparecerán aquí durante la consulta.
               </p>
             </div>
           </div>

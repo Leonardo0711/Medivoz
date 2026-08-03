@@ -145,7 +145,7 @@ export function useSessionRecorder({
     });
 
     socketRef.current.on("transcription_error", (data: { message?: string }) => {
-      const message = data?.message || "Error en transcripcion realtime";
+      const message = data?.message || "Error en transcripción en tiempo real";
       logger.error("Socket transcription error:", message);
       setRealtimeStatus("unavailable");
       toast.error(message);
@@ -158,7 +158,7 @@ export function useSessionRecorder({
 
       const refreshToken = localStorage.getItem("refresh_token");
       if (!refreshToken) {
-        toast.error("Sesion realtime expirada. Recarga la pagina e inicia sesion nuevamente.");
+        toast.error("Sesión en tiempo real expirada. Recarga la página e inicia sesión nuevamente.");
         return;
       }
 
@@ -170,7 +170,7 @@ export function useSessionRecorder({
         socketRef.current?.connect();
       } catch (refreshError) {
         logger.error("Realtime token refresh failed:", refreshError);
-        toast.error("Sesion realtime expirada. Inicia sesion nuevamente.");
+        toast.error("Sesión en tiempo real expirada. Inicia sesión nuevamente.");
       } finally {
         refreshingRealtimeTokenRef.current = false;
       }

@@ -10,7 +10,7 @@ export const BenefitsSection = () => {
 
   const stats = [
     { value: "70%", label: "Menos tiempo de documentacion" },
-    { value: "99%", label: "Precision en transcripcion" },
+    { value: "99%", label: "Precisión en transcripción" },
     { value: "30%", label: "Mas tiempo con pacientes" },
     { value: "1.2M+", label: "Horas recuperables al ano" },
   ];
@@ -23,7 +23,7 @@ export const BenefitsSection = () => {
             <div>
               <h2 className="mb-4 text-3xl font-bold tracking-tight">Impacto real</h2>
               <p className="text-lg text-muted-foreground">
-                Resultados medibles para mejorar la eficiencia de tu practica medica.
+                Resultados medibles para mejorar la eficiencia de tu práctica médica.
               </p>
             </div>
 

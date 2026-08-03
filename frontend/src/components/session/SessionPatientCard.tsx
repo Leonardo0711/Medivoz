@@ -11,7 +11,7 @@ interface SessionPatientCardProps {
 }
 
 export function SessionPatientCard({ selectedPatient, onPatientSelect }: SessionPatientCardProps) {
-  const patientIdentifier = selectedPatient?.dni || selectedPatient?.codigoPaciente || "Sin codigo";
+  const patientIdentifier = selectedPatient?.dni || selectedPatient?.codigoPaciente || "Sin código";
 
   return (
     <Card className="overflow-hidden border-border/40 shadow-sm">
@@ -45,7 +45,7 @@ export function SessionPatientCard({ selectedPatient, onPatientSelect }: Session
                 <h3 className="truncate font-semibold text-foreground">{selectedPatient.nombre}</h3>
                 <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                   <span>{selectedPatient.dni ? "DNI" : "Codigo"}: {patientIdentifier}</span>
-                  {selectedPatient.edad && <span>{selectedPatient.edad} anos</span>}
+                  {selectedPatient.edad && <span>{selectedPatient.edad} años</span>}
                 </div>
               </div>
             </div>

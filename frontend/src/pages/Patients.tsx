@@ -66,7 +66,7 @@ export default function Patients() {
 
   const handlePatientCreated = () => {
     refetch();
-    toast.success("Paciente creado con exito. Ya puedes iniciar una sesion medica.");
+    toast.success("Paciente creado con éxito. Ya puedes iniciar una sesión médica.");
   };
 
   const handleEditPatient = (patient: Patient) => {

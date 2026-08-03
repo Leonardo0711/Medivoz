@@ -12,13 +12,16 @@ export async function evaluationsRoutes(app: FastifyInstance) {
     return requireEvaluationAccess(request, reply);
   });
 
-  app.get("/consultations", async () => evaluationsService.listAvailableConsultations());
+  app.get("/consultations", async (request) => {
+    const evaluadorId = (request.user as any).sub;
+    return evaluationsService.listAvailableConsultations(evaluadorId);
+  });
 
   app.get("/consultations/:consultaId", async (request, reply) => {
     const evaluadorId = (request.user as any).sub;
     const { consultaId } = request.params as { consultaId: string };
     const context = await evaluationsService.getContext(consultaId, evaluadorId);
-    if (!context) return reply.code(404).send({ error: "Ficha no disponible para evaluacion" });
+    if (!context) return reply.code(404).send({ error: "Ficha no disponible para evaluación" });
     return context;
   });
 
@@ -36,7 +39,7 @@ export async function evaluationsRoutes(app: FastifyInstance) {
           evaluadorId,
           message: error?.message || "unknown",
         });
-        return reply.code(400).send({ error: error?.message || "No se pudo guardar la evaluacion" });
+        return reply.code(400).send({ error: error?.message || "No se pudo guardar la evaluación" });
       }
     }
   );

@@ -35,7 +35,7 @@ export const PatientCard = memo(function PatientCard({
           <div className="space-y-1">
             <div className="text-lg font-semibold">{name}</div>
             <div className="text-sm text-muted-foreground">
-              {age > 0 ? `${age} anos` : "Edad no especificada"}
+              {age > 0 ? `${age} años` : "Edad no especificada"}
             </div>
             {diagnosis && (
               <div className="mt-2 text-sm">
@@ -98,7 +98,7 @@ export const PatientCard = memo(function PatientCard({
               onViewRecord();
             }}
           >
-            Ver ficha medica
+            Ver ficha médica
           </Button>
         )}
       </CardFooter>

@@ -71,7 +71,7 @@ export const invokeAutoFillFunction = async (
 ): Promise<MedicalRecordData | null> => {
   if (!transcription || transcription.trim().length < 20) {
     logger.error("Transcription too short for auto-fill", { length: transcription.length });
-    toast.error("La transcripcion es demasiado corta para ser analizada");
+    toast.error("La transcripción es demasiado corta para ser analizada");
     return null;
   }
 
@@ -104,7 +104,7 @@ export const invokeAutoFillFunction = async (
 
     if (!data?.medicalRecord) {
       logger.error("No medical record data returned from API");
-      throw new Error("No se pudo generar la ficha medica automaticamente");
+      throw new Error("No se pudo generar la ficha médica automáticamente");
     }
 
     logger.log("Received medical record data from AI");
@@ -124,9 +124,9 @@ export const invokeAutoFillFunction = async (
 
     if (!medicalRecord.motivo_consulta || !medicalRecord.historia_cronologica) {
       logger.warn("Auto-fill returned incomplete data");
-      toast.warning("La IA genero informacion incompleta. Revisa y completa manualmente.");
+      toast.warning("La IA generó información incompleta. Revisa y completa manualmente.");
     } else {
-      toast.success("Ficha medica generada exitosamente");
+      toast.success("Ficha médica generada exitosamente");
     }
 
     return medicalRecord;

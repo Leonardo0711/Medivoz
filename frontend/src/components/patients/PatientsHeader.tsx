@@ -12,7 +12,7 @@ export function PatientsHeader({ onCreateNewPatient }: PatientsHeaderProps) {
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Mis pacientes</h1>
           <p className="mt-1 text-sm text-muted-foreground md:text-base">
-            Gestiona informacion clinica y crea sesiones medicas de forma rapida.
+            Gestiona información clínica y crea sesiones médicas de forma rápida.
           </p>
         </div>
 

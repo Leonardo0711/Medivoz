@@ -117,14 +117,14 @@ export default function SessionHistory() {
               <h1 className="text-2xl font-bold tracking-tight text-foreground">Historial de sesiones</h1>
             </div>
             <p className="ml-[52px] text-sm text-muted-foreground">
-              Revisa consultas pasadas, transcripciones y fichas medicas.
+              Revisa consultas pasadas, transcripciones y fichas médicas.
             </p>
           </header>
 
           <div className="relative mb-6 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por paciente, DNI o codigo..."
+              placeholder="Buscar por paciente, DNI o código..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-11 pl-10"
@@ -142,7 +142,7 @@ export default function SessionHistory() {
                   <History className="h-7 w-7 text-muted-foreground/40" />
                 </div>
                 <h3 className="mb-1 text-base font-semibold">
-                  {searchTerm ? "Sin resultados" : "Sin sesiones aun"}
+                  {searchTerm ? "Sin resultados" : "Sin sesiones aún"}
                 </h3>
                 <p className="max-w-xs text-sm text-muted-foreground">
                   {searchTerm
@@ -192,7 +192,7 @@ export default function SessionHistory() {
                         {!session.pacientes?.dni && session.pacientes?.codigoPaciente && (
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            Codigo: {session.pacientes.codigoPaciente}
+                            Código: {session.pacientes.codigoPaciente}
                           </span>
                         )}
                       </div>
@@ -206,7 +206,7 @@ export default function SessionHistory() {
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="text-[10px] text-muted-foreground">
-                          Sin transcripcion
+                          Sin transcripción
                         </Badge>
                       )}
                       <ChevronRight className="h-4 w-4 text-muted-foreground/30 transition-colors group-hover:text-primary" />

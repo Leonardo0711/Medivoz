@@ -2,7 +2,7 @@ import { FileText, ChevronRight, User, Mic, ClipboardCheck } from "lucide-react"
 
 const steps = [
   { number: 1, label: "Selecciona Paciente", icon: User },
-  { number: 2, label: "Graba Sesion", icon: Mic },
+  { number: 2, label: "Graba sesión", icon: Mic },
   { number: 3, label: "Revisa Ficha", icon: ClipboardCheck },
 ];
 
@@ -14,7 +14,7 @@ export function EmptyRecordPlaceholder() {
       </div>
       <h3 className="text-lg font-semibold text-foreground mb-1.5">Ficha lista para completar</h3>
       <p className="text-sm text-muted-foreground max-w-sm mb-8 leading-relaxed">
-        Para comenzar a documentar la consulta, selecciona un paciente e inicia la grabacion.
+        Para comenzar a documentar la consulta, selecciona un paciente e inicia la grabación.
       </p>
 
       <div className="flex items-center gap-3 w-full max-w-lg justify-center">

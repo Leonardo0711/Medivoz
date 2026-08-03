@@ -80,14 +80,14 @@ export function MedicalRecordModal({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-primary">
               <Stethoscope className="h-5 w-5" />
-              Ficha medica
+              Ficha médica
             </DialogTitle>
             <Badge variant="outline" className="bg-primary/10 text-xs text-primary">
-              Sesion: {sessionId?.substring(0, 8) || "Nueva"}
+              Sesión: {sessionId?.substring(0, 8) || "Nueva"}
             </Badge>
           </div>
           <DialogDescription className="text-sm">
-            Revisa la anamnesis y consulta la transcripcion sin perder espacio de trabajo.
+            Revisa la anamnesis y consulta la transcripción sin perder espacio de trabajo.
           </DialogDescription>
         </DialogHeader>
 
@@ -100,7 +100,7 @@ export function MedicalRecordModal({
               </TabsTrigger>
               <TabsTrigger value="transcripcion" className="gap-2">
                 <FileText className="h-4 w-4" />
-                Transcripcion
+                Transcripción
                 <span className="text-[10px] text-muted-foreground">
                   {fullTranscription.length.toLocaleString()}
                 </span>
@@ -158,7 +158,7 @@ export function MedicalRecordModal({
                 <div>
                   <h3 className="flex items-center gap-2 text-sm font-semibold">
                     <FileText className="h-4 w-4 text-primary" />
-                    Transcripcion completa
+                    Transcripción completa
                   </h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Texto registrado durante esta consulta.
@@ -167,7 +167,7 @@ export function MedicalRecordModal({
                 <Badge variant="outline">{fullTranscription.length.toLocaleString()} caracteres</Badge>
               </div>
               <div className="min-h-64 whitespace-pre-wrap break-words p-4 text-sm leading-6 text-foreground">
-                {fullTranscription || "Esta consulta no tiene transcripcion disponible."}
+                {fullTranscription || "Esta consulta no tiene transcripción disponible."}
               </div>
             </div>
           </TabsContent>

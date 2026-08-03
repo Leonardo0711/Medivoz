@@ -13,8 +13,8 @@ interface AuthShellProps {
 const highlights = [
   {
     icon: Activity,
-    title: "Transcripcion en tiempo real",
-    description: "Captura y estructura cada consulta sin romper el flujo medico.",
+    title: "Transcripción en tiempo real",
+    description: "Captura y estructura cada consulta sin romper el flujo médico.",
   },
   {
     icon: FileText,
@@ -46,7 +46,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
                 Interfaz clinica elegante, veloz y lista para consulta real.
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Medivoz transforma la consulta en documentacion util y trazable, cuidando la experiencia del medico y del paciente.
+                Medivoz transforma la consulta en documentación útil y trazable, cuidando la experiencia del médico y del paciente.
               </p>
             </div>
           </div>

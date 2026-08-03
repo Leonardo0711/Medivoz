@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCheck, FileText, Loader2, Plus, Save, Scale } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  FileText,
+  Loader2,
+  Plus,
+  Save,
+  Scale,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +47,11 @@ type Candidate = {
   fecha: string;
   notaMedivozCaracteres: number;
   notaEssiCaracteres: number;
+  seccionesTotales: number;
+  seccionesRevisadas: number;
+  seccionesPendientesIa: number;
+  motivosPendientes: string[];
+  estado: "lista" | "evaluada" | "pendiente_validacion";
 };
 type EvaluationContext = {
   consultaId: string;
@@ -87,9 +102,19 @@ export default function Evaluations() {
     queryFn: async () => (await api.get<Candidate[]>("/evaluations/consultations")).data,
   });
 
+  const readyCandidates = useMemo(
+    () => (candidatesQuery.data || []).filter((candidate) => candidate.estado !== "pendiente_validacion"),
+    [candidatesQuery.data]
+  );
+  const pendingCandidates = useMemo(
+    () => (candidatesQuery.data || []).filter((candidate) => candidate.estado === "pendiente_validacion"),
+    [candidatesQuery.data]
+  );
+
   useEffect(() => {
-    if (!selectedId && candidatesQuery.data?.[0]) setSelectedId(candidatesQuery.data[0].consultaId);
-  }, [candidatesQuery.data, selectedId]);
+    if (selectedId && readyCandidates.some((candidate) => candidate.consultaId === selectedId)) return;
+    setSelectedId(readyCandidates[0]?.consultaId || null);
+  }, [readyCandidates, selectedId]);
 
   const contextQuery = useQuery({
     queryKey: ["evaluation-context", selectedId],
@@ -119,8 +144,9 @@ export default function Evaluations() {
       });
     },
     onSuccess: () => {
-      toast.success("Evaluacion PDQI-9 guardada");
+      toast.success("Evaluación PDQI-9 guardada");
       void queryClient.invalidateQueries({ queryKey: ["evaluation-context", selectedId] });
+      void queryClient.invalidateQueries({ queryKey: ["evaluation-candidates"] });
     },
     onError: (error: unknown) => toast.error(getApiErrorMessage(error, "No se pudo guardar")),
   });
@@ -153,8 +179,8 @@ export default function Evaluations() {
         <div className="mx-auto max-w-[1500px] px-4 py-7 md:px-8">
           <header className="mb-6 flex flex-col justify-between gap-4 border-b pb-5 sm:flex-row sm:items-end">
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-semibold"><ClipboardCheck className="h-6 w-6 text-primary" />Evaluacion PDQI-9</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Comparacion ciega por codigo de consulta.</p>
+              <h1 className="flex items-center gap-2 text-2xl font-semibold"><ClipboardCheck className="h-6 w-6 text-primary" />Evaluación PDQI-9</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Comparación ciega por código de consulta.</p>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{completedDimensions}/18 puntajes</Badge>
@@ -164,18 +190,71 @@ export default function Evaluations() {
             </div>
           </header>
 
-          <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
             <aside className="border-b pb-4 xl:border-b-0 xl:border-r xl:pr-5">
-              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Fichas disponibles</p>
               {candidatesQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <div className="grid gap-1">
-                  {(candidatesQuery.data || []).map((candidate) => (
-                    <button key={candidate.consultaId} onClick={() => setSelectedId(candidate.consultaId)} className={`rounded-md px-3 py-2.5 text-left text-sm transition-colors ${selectedId === candidate.consultaId ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
-                      <span className="block font-mono text-xs">{candidate.codigoConsulta}</span>
-                      <span className="mt-1 block text-xs opacity-80">{candidate.notaMedivozCaracteres} caracteres</span>
-                    </button>
-                  ))}
-                  {!candidatesQuery.data?.length && <p className="text-sm text-muted-foreground">No hay fichas con resumen.</p>}
+                <div className="space-y-5">
+                  <section>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Listas para evaluar</p>
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700">{readyCandidates.length}</Badge>
+                    </div>
+                    <div className="grid gap-1.5">
+                      {readyCandidates.map((candidate) => (
+                        <button
+                          key={candidate.consultaId}
+                          onClick={() => setSelectedId(candidate.consultaId)}
+                          className={`rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${
+                            selectedId === candidate.consultaId
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-transparent hover:border-border hover:bg-muted"
+                          }`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs">{candidate.codigoConsulta}</span>
+                            <span className="flex items-center gap-1 text-[11px] font-medium">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {candidate.estado === "evaluada" ? "Evaluada" : "Lista"}
+                            </span>
+                          </span>
+                          <span className="mt-1 block text-xs opacity-80">{candidate.notaMedivozCaracteres} caracteres</span>
+                        </button>
+                      ))}
+                      {!readyCandidates.length && (
+                        <p className="rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground">
+                          Aún no hay fichas listas para puntuar.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="border-t pt-4">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pendientes del médico</p>
+                      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{pendingCandidates.length}</Badge>
+                    </div>
+                    <div className="grid gap-2">
+                      {pendingCandidates.map((candidate) => (
+                        <div key={candidate.consultaId} className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2.5 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs text-foreground">{candidate.codigoConsulta}</span>
+                            <Clock3 className="h-4 w-4 shrink-0 text-amber-700" />
+                          </div>
+                          <p className="mt-1.5 text-xs leading-5 text-amber-900">
+                            {candidate.motivosPendientes.join(" · ")}
+                          </p>
+                          {candidate.seccionesTotales > 0 && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {candidate.seccionesRevisadas}/{candidate.seccionesTotales} secciones revisadas
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {!pendingCandidates.length && (
+                        <p className="text-sm text-muted-foreground">No hay fichas pendientes.</p>
+                      )}
+                    </div>
+                  </section>
                 </div>
               )}
             </aside>
@@ -186,12 +265,12 @@ export default function Evaluations() {
               <section className="min-w-0">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm"><Scale className="h-4 w-4 text-primary" /><span className="font-mono">{contextQuery.data.codigoConsulta}</span></div>
-                  <div className="flex flex-wrap gap-2 text-sm"><Badge variant="outline">Medivoz: {formatAverage(scoresMedivoz)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge><Badge variant="outline">Edicion Medivoz: {formatMinutes(contextQuery.data.duracionMedivozMs)}</Badge></div>
+                  <div className="flex flex-wrap gap-2 text-sm"><Badge variant="outline">Medivoz: {formatAverage(scoresMedivoz)}</Badge><Badge variant="outline">ESSI: {formatAverage(scoresEssi)}</Badge><Badge variant="outline">Edición Medivoz: {formatMinutes(contextQuery.data.duracionMedivozMs)}</Badge></div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <section className="border p-4">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Nota Medivoz revisada por el medico</div>
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />Nota Medivoz revisada por el médico</div>
                     <Textarea value={contextQuery.data.notaMedivozAsistida} readOnly rows={11} className="resize-none bg-muted/30" />
                   </section>
                   <section className="border p-4">
@@ -215,18 +294,34 @@ export default function Evaluations() {
                   <Textarea value={comments} onChange={(event) => setComments(event.target.value)} rows={3} placeholder="Comentarios del evaluador" className="resize-none" />
                   <div><Label htmlFor="essi-minutes" className="text-xs">Tiempo ESSI (minutos)</Label><Input id="essi-minutes" type="number" min="0" value={essiMinutes} onChange={(event) => setEssiMinutes(event.target.value)} className="mt-1" /></div>
                   <Button className="h-auto min-h-11" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-                    {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Guardar evaluacion
+                    {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Guardar evaluación
                   </Button>
                 </div>
               </section>
-            ) : <div className="flex min-h-80 items-center justify-center text-sm text-muted-foreground">Seleccione una ficha para evaluar.</div>}
+            ) : (
+              <div className="flex min-h-80 items-center justify-center px-6 text-center">
+                <div className="max-w-md">
+                  {pendingCandidates.length > 0 ? (
+                    <>
+                      <AlertTriangle className="mx-auto h-8 w-8 text-amber-600" />
+                      <h2 className="mt-3 font-medium text-foreground">Hay fichas, pero aún no están listas</h2>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        El médico debe validar las sugerencias pendientes, confirmar el resumen Medivoz y pegar su nota de ESSI antes de la evaluación.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Seleccione una ficha para evaluar.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
       <Dialog open={createEvaluatorOpen} onOpenChange={setCreateEvaluatorOpen}>
         <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Nuevo evaluador</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-2"><div><Label>Nombre completo</Label><Input value={evaluatorForm.nombreCompleto} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, nombreCompleto: event.target.value })} /></div><div><Label>Correo</Label><Input type="email" value={evaluatorForm.email} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, email: event.target.value })} /></div><div><Label>Contrasena temporal</Label><Input type="password" value={evaluatorForm.password} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, password: event.target.value })} /></div><Button disabled={createEvaluatorMutation.isPending} onClick={() => createEvaluatorMutation.mutate()}>{createEvaluatorMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Crear evaluador</Button></div>
+          <div className="grid gap-4 py-2"><div><Label>Nombre completo</Label><Input value={evaluatorForm.nombreCompleto} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, nombreCompleto: event.target.value })} /></div><div><Label>Correo</Label><Input type="email" value={evaluatorForm.email} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, email: event.target.value })} /></div><div><Label>Contraseña temporal</Label><Input type="password" value={evaluatorForm.password} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, password: event.target.value })} /></div><Button disabled={createEvaluatorMutation.isPending} onClick={() => createEvaluatorMutation.mutate()}>{createEvaluatorMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Crear evaluador</Button></div>
         </DialogContent>
       </Dialog>
     </div>

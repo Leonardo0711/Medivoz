@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { pdqi9Evaluations, Pdqi9Scores } from "../../db/schema/evaluations.js";
 import { consultations } from "../../db/schema/clinical.js";
-import { medicalRecordEditSessions, medicalRecords } from "../../db/schema/scribe.js";
+import { medicalRecordEditSessions, medicalRecordSections, medicalRecords } from "../../db/schema/scribe.js";
 import { SavePdqi9EvaluationInput } from "./evaluations.schema.js";
 import { logger } from "../../core/utils/logger.js";
 
@@ -14,7 +14,7 @@ const averageScore = (scores: Pdqi9Scores) => {
 const toNumber = (value: string | number | null) => (value === null ? null : Number(value));
 
 export class EvaluationsService {
-  async listAvailableConsultations() {
+  async listAvailableConsultations(evaluadorId: string) {
     const rows = await db
       .select({
         consultaId: consultations.id,
@@ -24,22 +24,63 @@ export class EvaluationsService {
         createdAt: consultations.createdAt,
         notaMedivozAsistida: medicalRecords.resumenActual,
         notaEssi: medicalRecords.notaEssi,
+        seccionesTotales: sql<number>`(
+          select count(*)
+          from ${medicalRecordSections}
+          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
+        )`,
+        seccionesRevisadas: sql<number>`(
+          select count(*)
+          from ${medicalRecordSections}
+          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
+            and ${medicalRecordSections.estado} in ('revisada', 'bloqueada')
+        )`,
+        seccionesPendientesIa: sql<number>`(
+          select count(*)
+          from ${medicalRecordSections}
+          where ${medicalRecordSections.fichaId} = ${medicalRecords.id}
+            and ${medicalRecordSections.estado} = 'borrador_ia'
+        )`,
+        evaluacionId: sql<string | null>`(
+          select ${pdqi9Evaluations.id}
+          from ${pdqi9Evaluations}
+          where ${pdqi9Evaluations.consultaId} = ${consultations.id}
+            and ${pdqi9Evaluations.evaluadorId} = ${evaluadorId}
+          limit 1
+        )`,
       })
       .from(consultations)
       .innerJoin(medicalRecords, eq(medicalRecords.consultaId, consultations.id))
-      .where(
-        sql`nullif(btrim(${medicalRecords.resumenActual}), '') is not null
-          and nullif(btrim(${medicalRecords.notaEssi}), '') is not null`
-      )
       .orderBy(desc(consultations.createdAt));
 
-    return rows.map((row) => ({
-      consultaId: row.consultaId,
-      codigoConsulta: row.codigoConsulta,
-      fecha: row.fecha || row.createdAt,
-      notaMedivozCaracteres: (row.notaMedivozAsistida || "").length,
-      notaEssiCaracteres: (row.notaEssi || "").length,
-    }));
+    return rows.map((row) => {
+      const notaMedivozCaracteres = (row.notaMedivozAsistida || "").trim().length;
+      const notaEssiCaracteres = (row.notaEssi || "").trim().length;
+      const seccionesPendientesIa = Number(row.seccionesPendientesIa || 0);
+      const motivosPendientes: string[] = [];
+
+      if (seccionesPendientesIa > 0) {
+        motivosPendientes.push(
+          `${seccionesPendientesIa} ${seccionesPendientesIa === 1 ? "sección" : "secciones"} con IA sin validar`
+        );
+      }
+      if (!notaMedivozCaracteres) motivosPendientes.push("Falta confirmar el resumen Medivoz");
+      if (!notaEssiCaracteres) motivosPendientes.push("Falta pegar la nota ESSI");
+
+      const estaLista = motivosPendientes.length === 0;
+      return {
+        consultaId: row.consultaId,
+        codigoConsulta: row.codigoConsulta,
+        fecha: row.fecha || row.createdAt,
+        notaMedivozCaracteres,
+        notaEssiCaracteres,
+        seccionesTotales: Number(row.seccionesTotales || 0),
+        seccionesRevisadas: Number(row.seccionesRevisadas || 0),
+        seccionesPendientesIa,
+        motivosPendientes,
+        estado: estaLista ? (row.evaluacionId ? "evaluada" : "lista") : "pendiente_validacion",
+      };
+    });
   }
 
   async getContext(consultaId: string, evaluadorId: string) {
@@ -62,6 +103,19 @@ export class EvaluationsService {
     const notaMedivozAsistida = (row.resumenActual || "").trim();
     const notaEssi = (row.notaEssi || "").trim();
     if (!notaMedivozAsistida || !notaEssi) return null;
+
+    const [{ seccionesPendientesIa }] = await db
+      .select({
+        seccionesPendientesIa: sql<number>`count(*)`,
+      })
+      .from(medicalRecordSections)
+      .where(
+        and(
+          eq(medicalRecordSections.fichaId, row.fichaId),
+          eq(medicalRecordSections.estado, "borrador_ia")
+        )
+      );
+    if (Number(seccionesPendientesIa || 0) > 0) return null;
 
     const [editMetrics] = await db
       .select({ duracionMedivozMs: sql<number>`coalesce(sum(${medicalRecordEditSessions.duracionActivaMs}), 0)` })
@@ -108,7 +162,7 @@ export class EvaluationsService {
 
   async save(consultaId: string, evaluadorId: string, input: SavePdqi9EvaluationInput) {
     const context = await this.getContext(consultaId, evaluadorId);
-    if (!context) throw new Error("No existe una ficha con resumen disponible para evaluar");
+    if (!context) throw new Error("No existe una ficha validada y completa disponible para evaluar");
 
     const promedioMedivoz = averageScore(input.puntajesMedivoz as Pdqi9Scores);
     const promedioEssi = averageScore(input.puntajesEssi as Pdqi9Scores);
