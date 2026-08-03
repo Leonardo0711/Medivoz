@@ -221,11 +221,30 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     [markEditActivity, markRecordChanged]
   );
 
+  const refreshValidation = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const result = await fetchRecordValidation(sessionId);
+      logger.info("Medical record validation loaded", {
+        sessionId,
+        ok: result.ok,
+        missingRequired: result.missingRequired.length,
+        pendingReview: result.pendingReview.length,
+      });
+      setValidationWarnings([
+        ...result.missingRequired.map((item) => item.mensaje),
+        ...result.pendingReview.map((item) => item.mensaje),
+      ]);
+    } catch (error) {
+      logger.warn("No se pudo obtener validación clínica", error);
+    }
+  }, [sessionId]);
+
   const handleAcceptSuggestion = useCallback(
-    async (field: keyof MedicalRecordFormData) => {
+    async (field: keyof MedicalRecordFormData, contentOverride?: string) => {
       const suggestion = sectionMeta[field]?.textoSugeridoIa;
       if (!sessionId) return false;
-      const visibleText = formData[field] || "";
+      const visibleText = contentOverride ?? formData[field] ?? "";
       const doctorEditedSuggestion = Boolean(
         suggestion?.trim() && visibleText.trim() && visibleText.trim() !== suggestion.trim()
       );
@@ -241,6 +260,8 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
 
       if (suggestion && !doctorEditedSuggestion && !visibleText.trim()) {
         setFormData((prev) => ({ ...prev, [field]: suggestion }));
+      } else if (contentOverride) {
+        setFormData((prev) => ({ ...prev, [field]: contentOverride }));
       }
       setSummaryData((prev) => ({
         ...prev,
@@ -293,6 +314,7 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
                 origenDato: null,
               },
         }));
+        await refreshValidation();
         toast.success("Sección validada correctamente");
         return true;
       } catch (error) {
@@ -301,7 +323,15 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         return false;
       }
     },
-    [clearFieldDuration, formData, sectionMeta, sessionId, snapshotEditTimer, summaryData]
+    [
+      clearFieldDuration,
+      formData,
+      refreshValidation,
+      sectionMeta,
+      sessionId,
+      snapshotEditTimer,
+      summaryData,
+    ]
   );
 
   const handleRejectSuggestion = useCallback(
@@ -321,9 +351,10 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
             }
           : prev[field],
       }));
+      await refreshValidation();
       return true;
     },
-    [sessionId]
+    [refreshValidation, sessionId]
   );
 
   const handleSummaryChange = useCallback(
@@ -361,25 +392,6 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
     [markEditActivity, markRecordChanged]
   );
 
-  const refreshValidation = useCallback(async () => {
-    if (!sessionId) return;
-    try {
-      const result = await fetchRecordValidation(sessionId);
-      logger.info("Medical record validation loaded", {
-        sessionId,
-        ok: result.ok,
-        missingRequired: result.missingRequired.length,
-        pendingReview: result.pendingReview.length,
-      });
-      setValidationWarnings([
-        ...result.missingRequired.map((item) => item.mensaje),
-        ...result.pendingReview.map((item) => item.mensaje),
-      ]);
-    } catch (error) {
-      logger.warn("No se pudo obtener validacion clinica", error);
-    }
-  }, [sessionId]);
-
   useEffect(() => {
     if (sessionId && recordExists) {
       void refreshValidation();
@@ -396,9 +408,10 @@ export function useMedicalRecord(sessionId: string | null, patientId: string | n
         ...prev,
         [field]: prev[field] ? { ...prev[field]!, estado: "bloqueada" } : prev[field],
       }));
+      await refreshValidation();
       return true;
     },
-    [sessionId]
+    [refreshValidation, sessionId]
   );
 
   const handleRetrySection = useCallback(

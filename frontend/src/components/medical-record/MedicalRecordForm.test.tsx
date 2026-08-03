@@ -63,6 +63,29 @@ describe("MedicalRecordForm validation state", () => {
     expect(screen.getByRole("button", { name: "Validando..." })).toBeDisabled();
 
     resolveValidation(true);
-    await waitFor(() => expect(onAcceptSuggestion).toHaveBeenCalledWith("motivo_consulta"));
+    await waitFor(() =>
+      expect(onAcceptSuggestion).toHaveBeenCalledWith("motivo_consulta", undefined)
+    );
+  });
+
+  it("permite marcar un campo vacío como no referido", async () => {
+    const onAcceptSuggestion = vi.fn(async () => true);
+
+    render(
+      <MedicalRecordForm
+        formData={formData}
+        onChange={vi.fn()}
+        onAcceptSuggestion={onAcceptSuggestion}
+        validationWarnings={["Falta completar Tiempo de enfermedad"]}
+      />
+    );
+
+    const buttons = screen.getAllByRole("button", { name: "No referido" });
+    expect(buttons[0]).toBeEnabled();
+    fireEvent.click(buttons[0]);
+
+    await waitFor(() =>
+      expect(onAcceptSuggestion).toHaveBeenCalledWith("tiempo_enfermedad", "No referido")
+    );
   });
 });

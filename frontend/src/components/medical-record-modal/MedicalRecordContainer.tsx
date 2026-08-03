@@ -32,7 +32,10 @@ interface MedicalRecordContainerProps {
   validationWarnings?: string[];
   editElapsedMs?: number;
   isEditTiming?: boolean;
-  onAcceptSuggestion?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
+  onAcceptSuggestion?: (
+    field: keyof MedicalRecordFormData,
+    contentOverride?: string
+  ) => Promise<boolean>;
   onRejectSuggestion?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
   onBlockSection?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
   onRetrySection?: (field: keyof MedicalRecordFormData) => Promise<boolean>;

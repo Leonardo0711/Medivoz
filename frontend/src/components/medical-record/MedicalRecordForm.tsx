@@ -8,6 +8,7 @@ import {
   Accessibility,
   Check,
   CheckCircle2,
+  CircleSlash2,
   ClipboardList,
   Clock,
   FileText,
@@ -47,7 +48,10 @@ interface MedicalRecordFormProps {
   onChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
-  onAcceptSuggestion?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
+  onAcceptSuggestion?: (
+    field: keyof MedicalRecordFormData,
+    contentOverride?: string
+  ) => Promise<boolean>;
   onRejectSuggestion?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
   onBlockSection?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
   onRetrySection?: (field: keyof MedicalRecordFormData) => Promise<boolean>;
@@ -204,11 +208,14 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
     recordSummary.resumenActual.trim() !== recordSummary.resumenSugeridoIa?.trim()
   );
 
-  const validateField = async (field: keyof MedicalRecordFormData) => {
+  const validateField = async (
+    field: keyof MedicalRecordFormData,
+    contentOverride?: string
+  ) => {
     if (!onAcceptSuggestion || validatingField) return;
     setValidatingField(field);
     try {
-      await onAcceptSuggestion(field);
+      await onAcceptSuggestion(field, contentOverride);
     } finally {
       setValidatingField(null);
     }
@@ -222,7 +229,8 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
     const editedOverSuggestion = pending && hasDoctorEditOverSuggestion(field);
     const reviewed = isReviewed(field);
     const isValidating = validatingField === field;
-    const canValidate = hasAnythingToValidate(field) && !locked && !reviewed;
+    const hasContent = hasAnythingToValidate(field);
+    const canValidate = !locked && !reviewed;
 
     return (
       <div
@@ -295,13 +303,13 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
               variant={reviewed ? "secondary" : "outline"}
               size="sm"
               className="h-8 px-2 text-xs"
-              onClick={() => void validateField(field)}
+              onClick={() => void validateField(field, hasContent ? undefined : "No referido")}
               disabled={!canValidate || isValidating}
               title={
                 reviewed
                   ? "Esta sección ya está validada"
-                  : !canValidate
-                  ? "Primero debe existir texto o sugerencia IA"
+                  : !hasContent
+                  ? "Guardar esta sección como No referido"
                   : modified || editedOverSuggestion
                     ? "Validar el texto editado"
                     : "Validar esta sección"
@@ -311,6 +319,8 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
               ) : reviewed ? (
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+              ) : !hasContent ? (
+                <CircleSlash2 className="mr-1 h-3.5 w-3.5" />
               ) : (
                 <Check className="mr-1 h-3.5 w-3.5" />
               )}
@@ -318,6 +328,8 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
                 ? "Validando..."
                 : reviewed
                   ? "Validado"
+                  : !hasContent
+                    ? "No referido"
                   : modified || editedOverSuggestion
                     ? "Validar cambios"
                     : "Validar"}
@@ -407,8 +419,11 @@ export const MedicalRecordForm = memo(function MedicalRecordForm({
 
       {validationWarnings.length > 0 && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
-          <p className="font-semibold">Validaciones clinicas pendientes</p>
+          <p className="font-semibold">Datos pendientes</p>
           <p className="mt-1 text-xs">{validationWarnings.slice(0, 3).join(" · ")}</p>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+            Completa el dato o usa <strong>No referido</strong> cuando no fue mencionado.
+          </p>
         </div>
       )}
 
