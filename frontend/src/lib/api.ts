@@ -15,7 +15,10 @@ export const getApiErrorMessage = (error: unknown, fallback: string): string => 
   return error instanceof Error ? error.message || fallback : fallback;
 };
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+// En producción, Nginx publica la API bajo el mismo origen. Mantener una ruta
+// relativa evita que un build sin variables Vite intente conectarse al
+// localhost del navegador del médico.
+export const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 type RefreshedAuthSession = {
   accessToken: string;

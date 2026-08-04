@@ -24,7 +24,8 @@ interface UseSessionRecorderReturn {
   updateSessionWithTranscription: (transcription: string, dbSessionId?: string) => Promise<void>;
 }
 
-const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+// Socket.IO también está publicado por el proxy del mismo dominio.
+const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 const MIN_VOICE_RMS = 0.0035;
 const VOICE_START_CHUNKS = 2;
 const VOICE_SILENCE_TAIL_CHUNKS = 8;
