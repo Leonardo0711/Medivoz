@@ -70,7 +70,9 @@ export default function Templates() {
               Fichas de anamnesis
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Elige la ficha que se cargará por defecto. En cada consulta podrás cambiarla antes de iniciar la documentación.
+              {user?.rol === "administrador"
+                ? "Elige la ficha que se cargará por defecto en tus consultas de prueba."
+                : "La ficha corresponde a tu especialidad registrada y se carga automáticamente en cada consulta."}
             </p>
           </header>
 
@@ -106,12 +108,16 @@ export default function Templates() {
                     </div>
                     <Button
                       onClick={() => void setAsDefault(template.id)}
-                      disabled={template.esPredeterminada || savingId !== null}
+                      disabled={user?.rol !== "administrador" || template.esPredeterminada || savingId !== null}
                       variant={template.esPredeterminada ? "secondary" : "default"}
                       className="shrink-0"
                     >
                       {savingId === template.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {template.esPredeterminada ? "Ficha predeterminada" : "Usar por defecto"}
+                      {template.esPredeterminada
+                        ? "Ficha asignada"
+                        : user?.rol === "administrador"
+                          ? "Usar por defecto"
+                          : "Asignada por especialidad"}
                     </Button>
                   </CardHeader>
                   <CardContent>

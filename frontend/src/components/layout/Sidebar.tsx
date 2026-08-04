@@ -12,6 +12,7 @@ import {
   Mic,
   Stethoscope,
   Users,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -50,7 +51,10 @@ export function Sidebar() {
       { name: "Agentes IA", href: "/agents", icon: Cpu },
       { name: "Fichas", href: "/templates", icon: ClipboardList },
     ];
-    return user?.rol === "administrador" ? [...clinicalItems, evaluationItem] : clinicalItems;
+    const usersItem = { name: "Usuarios", href: "/users", icon: UserCog };
+    return user?.rol === "administrador"
+      ? [...clinicalItems, evaluationItem, usersItem]
+      : clinicalItems;
   }, [user?.rol]);
 
   const homeHref = user?.rol === "evaluador" ? "/evaluations" : "/dashboard";

@@ -7,7 +7,11 @@ import { clinicalRoutes } from "./modules/clinical/clinical.routes.js";
 import { scribeRoutes } from "./modules/scribe/scribe.routes.js";
 import { agentsRoutes } from "./modules/agents/agents.routes.js";
 import { evaluationsRoutes } from "./modules/evaluations/evaluations.routes.js";
+import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { setupSockets } from "./socket/index.js";
+import { db } from "./db/index.js";
+import { users } from "./db/schema/auth.js";
+import { eq } from "drizzle-orm";
 
 export async function buildApp() {
   const app = fastify({
@@ -54,8 +58,18 @@ export async function buildApp() {
   app.decorate("authenticate", async (request: any, reply: any) => {
     try {
       await request.jwtVerify();
+      const userId = request.user?.sub;
+      const user = userId
+        ? await db.query.users.findFirst({
+            columns: { estado: true },
+            where: eq(users.id, userId),
+          })
+        : null;
+      if (!user || user.estado !== "activa") {
+        return reply.code(401).send({ error: "La cuenta no está activa" });
+      }
     } catch (err) {
-      reply.send(err);
+      if (!reply.sent) reply.send(err);
     }
   });
 
@@ -65,6 +79,7 @@ export async function buildApp() {
   await app.register(scribeRoutes, { prefix: "/api/v1/scribe" });
   await app.register(agentsRoutes, { prefix: "/api/v1/agents" });
   await app.register(evaluationsRoutes, { prefix: "/api/v1/evaluations" });
+  await app.register(adminRoutes, { prefix: "/api/v1/admin" });
 
   setupSockets(app);
 

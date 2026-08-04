@@ -7,7 +7,7 @@ Project medivoz_vps_postgresql {
   Decisiones de esta version:
   1) Registro simple con correo, nombre completo, especialidad y contrasena.
   2) No hay verificacion de correo ni MFA en esta etapa.
-  3) El administrador existe, pero se crea manualmente.
+  3) El administrador principal se crea manualmente y gestiona medicos y evaluadores desde la aplicacion.
   4) Los usuarios que se registran desde la app se crean como doctores.
   5) Fase 1 se enfoca en anamnesis de primera consulta, no en historia clinica longitudinal.
   6) Se mantiene la tabla pacientes para distinguir pacientes entre consultas, pero con datos minimos.
@@ -226,6 +226,7 @@ Table perfiles_usuario {
   usuario_id uuid [not null, ref: > usuarios.id]
   nombre_completo text [not null]
   especialidad_id int [not null, ref: > catalogo_especialidades.id]
+  plantilla_anamnesis_predeterminada_id uuid [ref: > plantillas_anamnesis.id]
   url_avatar text
   creado_en timestamptz [not null, default: `now()`]
   actualizado_en timestamptz [not null, default: `now()`]
@@ -256,6 +257,28 @@ Table roles_usuario {
   Note: '''
   Define si el usuario es doctor o administrador.
   Los registros publicos crean usuarios con rol doctor por defecto.
+  '''
+}
+
+Table auditoria_usuarios {
+  id uuid [pk, default: `gen_random_uuid()`]
+  actor_id uuid [ref: > usuarios.id]
+  usuario_objetivo_id uuid [ref: > usuarios.id]
+  accion varchar(40) [not null]
+  estado_anterior estado_cuenta
+  estado_nuevo estado_cuenta
+  detalles jsonb [not null, default: `'{}'::jsonb`]
+  creado_en timestamptz [not null, default: `now()`]
+
+  Indexes {
+    actor_id
+    usuario_objetivo_id
+    creado_en
+  }
+
+  Note: '''
+  Auditoria de altas, suspensiones y reactivaciones realizadas por administradores.
+  Los detalles nunca almacenan contrasenas ni tokens.
   '''
 }
 

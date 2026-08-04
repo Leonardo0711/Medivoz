@@ -27,6 +27,7 @@ const Agents = lazy(() => import("./pages/Agents"));
 const AgentDetail = lazy(() => import("./pages/AgentDetail"));
 const Templates = lazy(() => import("./pages/Templates"));
 const Evaluations = lazy(() => import("./pages/Evaluations"));
+const Users = lazy(() => import("./pages/Users"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback component with better UX
@@ -95,6 +96,9 @@ const App = () => {
                           </Route>
                           <Route element={<RoleRoute allowedRoles={["evaluador", "administrador"]} />}>
                             <Route path="/evaluations" element={<Evaluations />} />
+                          </Route>
+                          <Route element={<RoleRoute allowedRoles={["administrador"]} />}>
+                            <Route path="/users" element={<Users />} />
                           </Route>
                         </Route>
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

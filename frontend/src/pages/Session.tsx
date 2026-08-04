@@ -92,7 +92,11 @@ export default function Session() {
 
   const defaultTemplateId = templates.find((template) => template.esPredeterminada)?.id || "";
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
-  const isTemplateLocked = Boolean(transcription.trim() || recordExists);
+  const isTemplateLocked = Boolean(
+    transcription.trim() ||
+      recordExists ||
+      (anamnesisPhase?.estadoAnamnesis && anamnesisPhase.estadoAnamnesis !== "no_iniciada")
+  );
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -148,8 +152,15 @@ export default function Session() {
           setCurrentSessionId(currentConsultation.id);
           setTranscription(currentConsultation.transcripcion || "");
           setSelectedTemplateId(currentConsultation.plantillaAnamnesisId || defaultTemplateId);
+          setAnamnesisPhase({
+            estadoAnamnesis: currentConsultation.estadoAnamnesis,
+            segmentoFinAnamnesis: currentConsultation.segmentoFinAnamnesis,
+            confianzaCierreAnamnesis: currentConsultation.confianzaCierreAnamnesis,
+            motivoCierreAnamnesis: currentConsultation.motivoCierreAnamnesis,
+          });
         } else {
           setSelectedTemplateId(defaultTemplateId);
+          setAnamnesisPhase(null);
         }
       }
     } catch (requestError) {
@@ -332,7 +343,7 @@ export default function Session() {
                 selectedTemplateId={selectedTemplateId}
                 isLoading={isLoadingTemplates}
                 isSaving={isSavingTemplate}
-                disabled={isTemplateLocked}
+                disabled={isTemplateLocked || templates.length <= 1}
                 onTemplateChange={(templateId) => void handleTemplateChange(templateId)}
               />
 

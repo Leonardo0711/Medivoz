@@ -6,6 +6,8 @@ import {
   timestamp,
   boolean,
   integer,
+  jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 import { roleEnum, accountStatusEnum } from "./enums.js";
 
@@ -69,3 +71,22 @@ export const sessions = pgTable("sesiones_usuario", {
   createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("actualizado_en", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const userAudit = pgTable(
+  "auditoria_usuarios",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    targetUserId: uuid("usuario_objetivo_id").references(() => users.id, { onDelete: "set null" }),
+    action: varchar("accion", { length: 40 }).notNull(),
+    previousStatus: accountStatusEnum("estado_anterior"),
+    newStatus: accountStatusEnum("estado_nuevo"),
+    details: jsonb("detalles").$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_auditoria_usuarios_actor").on(table.actorId),
+    index("idx_auditoria_usuarios_objetivo").on(table.targetUserId),
+    index("idx_auditoria_usuarios_creado_en").on(table.createdAt),
+  ]
+);

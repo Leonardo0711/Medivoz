@@ -5,7 +5,6 @@ import {
   ClipboardCheck,
   FileText,
   Loader2,
-  Plus,
   Save,
   Scale,
 } from "lucide-react";
@@ -13,12 +12,9 @@ import { toast } from "sonner";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/contexts/AuthContext";
 import api, { getApiErrorMessage } from "@/lib/api";
 
 const dimensions = [
@@ -82,15 +78,12 @@ const isComplete = (scores: Scores): scores is CompletedScores =>
   Object.values(scores).every((value) => typeof value === "number");
 
 export default function Evaluations() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [essiNote, setEssiNote] = useState("");
   const [scoresMedivoz, setScoresMedivoz] = useState<Scores>(emptyScores);
   const [scoresEssi, setScoresEssi] = useState<Scores>(emptyScores);
   const [comments, setComments] = useState("");
-  const [createEvaluatorOpen, setCreateEvaluatorOpen] = useState(false);
-  const [evaluatorForm, setEvaluatorForm] = useState({ email: "", password: "", nombreCompleto: "" });
 
   const candidatesQuery = useQuery({
     queryKey: ["evaluation-candidates"],
@@ -134,15 +127,6 @@ export default function Evaluations() {
     onError: (error: unknown) => toast.error(getApiErrorMessage(error, "No se pudo guardar")),
   });
 
-  const createEvaluatorMutation = useMutation({
-    mutationFn: () => api.post("/auth/evaluators", evaluatorForm),
-    onSuccess: () => {
-      toast.success("Evaluador creado");
-      setEvaluatorForm({ email: "", password: "", nombreCompleto: "" });
-      setCreateEvaluatorOpen(false);
-    },
-    onError: (error: unknown) => toast.error(getApiErrorMessage(error, "No se pudo crear el evaluador")),
-  });
 
   const completedDimensions = useMemo(
     () => Object.values(scoresMedivoz).filter((score) => score !== null).length + Object.values(scoresEssi).filter((score) => score !== null).length,
@@ -167,9 +151,6 @@ export default function Evaluations() {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{completedDimensions}/18 puntajes</Badge>
-              {user?.rol === "administrador" && (
-                <Button size="sm" onClick={() => setCreateEvaluatorOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Evaluador</Button>
-              )}
             </div>
           </header>
 
@@ -256,11 +237,6 @@ export default function Evaluations() {
         </div>
       </main>
 
-      <Dialog open={createEvaluatorOpen} onOpenChange={setCreateEvaluatorOpen}>
-        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Nuevo evaluador</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-2"><div><Label>Nombre completo</Label><Input value={evaluatorForm.nombreCompleto} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, nombreCompleto: event.target.value })} /></div><div><Label>Correo</Label><Input type="email" value={evaluatorForm.email} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, email: event.target.value })} /></div><div><Label>Contraseña temporal</Label><Input type="password" value={evaluatorForm.password} onChange={(event) => setEvaluatorForm({ ...evaluatorForm, password: event.target.value })} /></div><Button disabled={createEvaluatorMutation.isPending} onClick={() => createEvaluatorMutation.mutate()}>{createEvaluatorMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Crear evaluador</Button></div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

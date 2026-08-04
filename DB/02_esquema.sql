@@ -219,6 +219,20 @@ CREATE TABLE roles_usuario (
 
 COMMENT ON TABLE roles_usuario IS 'Rol del usuario. Los registros publicos deberian crear doctor por defecto.';
 
+CREATE TABLE auditoria_usuarios (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id uuid REFERENCES usuarios(id) ON DELETE SET NULL,
+  usuario_objetivo_id uuid REFERENCES usuarios(id) ON DELETE SET NULL,
+  accion varchar(40) NOT NULL,
+  estado_anterior estado_cuenta,
+  estado_nuevo estado_cuenta,
+  detalles jsonb NOT NULL DEFAULT '{}'::jsonb,
+  creado_en timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE auditoria_usuarios IS 'Altas y cambios de estado ejecutados por un administrador.';
+COMMENT ON COLUMN auditoria_usuarios.detalles IS 'Metadatos no sensibles; nunca debe contener contrasenas ni tokens.';
+
 -- =========================================================
 -- PLANTILLAS DE ANAMNESIS POR ESPECIALIDAD
 -- =========================================================
@@ -690,6 +704,15 @@ CREATE INDEX idx_perfiles_usuario_plantilla_predeterminada
 
 CREATE INDEX idx_roles_usuario_usuario_id
   ON roles_usuario (usuario_id);
+
+CREATE INDEX idx_auditoria_usuarios_actor
+  ON auditoria_usuarios (actor_id);
+
+CREATE INDEX idx_auditoria_usuarios_objetivo
+  ON auditoria_usuarios (usuario_objetivo_id);
+
+CREATE INDEX idx_auditoria_usuarios_creado_en
+  ON auditoria_usuarios (creado_en);
 
 CREATE UNIQUE INDEX uq_plantillas_anamnesis_activa
   ON plantillas_anamnesis (especialidad_id)
