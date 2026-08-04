@@ -10,16 +10,16 @@ const templates: AnamnesisTemplate[] = [
     especialidad: "Reumatologia",
     nombre: "Ficha de Reumatologia",
     descripcion: "Anamnesis orientada al patrón articular y la limitación funcional.",
-    numeroVersion: 1,
+    numeroVersion: 2,
     esPredeterminada: true,
     secciones: [],
   },
   {
-    id: "template-neurologia",
-    especialidadId: 4,
-    especialidad: "Neurologia",
-    nombre: "Ficha de Neurologia",
-    descripcion: "Anamnesis orientada al inicio temporal y déficit focal.",
+    id: "template-reumatologia-anterior",
+    especialidadId: 13,
+    especialidad: "Reumatologia",
+    nombre: "Ficha breve de Reumatologia",
+    descripcion: "Variante breve de anamnesis reumatológica.",
     numeroVersion: 1,
     esPredeterminada: false,
     secciones: [],
@@ -27,7 +27,7 @@ const templates: AnamnesisTemplate[] = [
 ];
 
 describe("SessionTemplateCard", () => {
-  it("muestra la ficha elegida y su contexto clinico", () => {
+  it("muestra las variantes de ficha y su versión", () => {
     render(
       <SessionTemplateCard
         templates={templates}
@@ -39,12 +39,12 @@ describe("SessionTemplateCard", () => {
     );
 
     expect(screen.getByRole("combobox", { name: "Seleccionar ficha de anamnesis" })).toHaveTextContent(
-      "Reumatología"
+      "Ficha de Reumatologia · v2"
     );
     expect(screen.getByText("Anamnesis orientada al patrón articular y la limitación funcional.")).toBeInTheDocument();
   });
 
-  it("bloquea el cambio cuando la documentacion ya comenzo", () => {
+  it("bloquea el cambio cuando la documentación ya comenzó", () => {
     render(
       <SessionTemplateCard
         templates={templates}
@@ -58,5 +58,21 @@ describe("SessionTemplateCard", () => {
 
     expect(screen.getByRole("combobox", { name: "Seleccionar ficha de anamnesis" })).toBeDisabled();
     expect(screen.getByText("La ficha queda fijada cuando comienza la documentación de la consulta.")).toBeInTheDocument();
+  });
+
+  it("no muestra selector cuando solo existe una ficha", () => {
+    render(
+      <SessionTemplateCard
+        templates={[templates[0]]}
+        selectedTemplateId="template-reumatologia"
+        isLoading={false}
+        isSaving={false}
+        onTemplateChange={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("combobox", { name: "Seleccionar ficha de anamnesis" })).not.toBeInTheDocument();
+    expect(screen.getByText("Ficha de Reumatologia")).toBeInTheDocument();
+    expect(screen.getByText("Asignada automáticamente por tu especialidad.")).toBeInTheDocument();
   });
 });

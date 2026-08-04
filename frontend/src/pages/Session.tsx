@@ -343,7 +343,7 @@ export default function Session() {
                 selectedTemplateId={selectedTemplateId}
                 isLoading={isLoadingTemplates}
                 isSaving={isSavingTemplate}
-                disabled={isTemplateLocked || templates.length <= 1}
+                disabled={isTemplateLocked}
                 onTemplateChange={(templateId) => void handleTemplateChange(templateId)}
               />
 

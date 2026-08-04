@@ -71,8 +71,8 @@ export default function Templates() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {user?.rol === "administrador"
-                ? "Elige la ficha que se cargará por defecto en tus consultas de prueba."
-                : "La ficha corresponde a tu especialidad registrada y se carga automáticamente en cada consulta."}
+                ? "Revisa las fichas disponibles y define cuál se cargará primero en tus consultas de prueba."
+                : "Solo se muestran las variantes de tu especialidad. La predeterminada se carga automáticamente en cada consulta."}
             </p>
           </header>
 
@@ -93,8 +93,10 @@ export default function Templates() {
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <CardTitle className="flex items-center gap-2 text-lg">
                           <Stethoscope className="h-4 w-4 text-primary" />
-                          {formatSpecialityName(template.especialidad)}
+                          {template.nombre}
                         </CardTitle>
+                        <Badge variant="outline">{formatSpecialityName(template.especialidad)}</Badge>
+                        <Badge variant="outline">Versión {template.numeroVersion}</Badge>
                         {template.esPredeterminada && (
                           <Badge className="bg-primary text-primary-foreground">
                             <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
@@ -108,16 +110,14 @@ export default function Templates() {
                     </div>
                     <Button
                       onClick={() => void setAsDefault(template.id)}
-                      disabled={user?.rol !== "administrador" || template.esPredeterminada || savingId !== null}
+                      disabled={templates.length <= 1 || template.esPredeterminada || savingId !== null}
                       variant={template.esPredeterminada ? "secondary" : "default"}
                       className="shrink-0"
                     >
                       {savingId === template.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {template.esPredeterminada
                         ? "Ficha asignada"
-                        : user?.rol === "administrador"
-                          ? "Usar por defecto"
-                          : "Asignada por especialidad"}
+                        : "Usar por defecto"}
                     </Button>
                   </CardHeader>
                   <CardContent>

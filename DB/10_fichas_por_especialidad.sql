@@ -1,7 +1,7 @@
 BEGIN;
 
--- Preferencia personal del doctor. La ficha elegida puede pertenecer a cualquiera
--- de las cinco especialidades clinicas habilitadas.
+-- Preferencia personal del doctor. La ficha elegida debe pertenecer a su
+-- especialidad; si existen variantes, una de ellas se carga por defecto.
 ALTER TABLE perfiles_usuario
   ADD COLUMN IF NOT EXISTS plantilla_anamnesis_predeterminada_id uuid
     REFERENCES plantillas_anamnesis(id) ON DELETE SET NULL;

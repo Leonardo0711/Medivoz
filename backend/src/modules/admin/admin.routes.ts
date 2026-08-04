@@ -5,6 +5,7 @@ import { adminService } from "./admin.service.js";
 import {
   createManagedUserSchema,
   listUsersQuerySchema,
+  updateManagedUserSchema,
   updateManagedUserStatusSchema,
 } from "./admin.schema.js";
 
@@ -29,6 +30,21 @@ export async function adminRoutes(app: FastifyInstance) {
       const message = error?.message || "No se pudo crear el usuario";
       const conflict = message.includes("registrado") || message.includes("duplicate key");
       return reply.code(conflict ? 409 : 400).send({ error: message });
+    }
+  });
+
+  app.patch("/users/:id", {
+    schema: { body: convertSchema(updateManagedUserSchema) },
+  }, async (request, reply) => {
+    try {
+      const actorId = (request.user as any).sub;
+      const { id } = request.params as { id: string };
+      return await adminService.updateUser(actorId, id, request.body as any);
+    } catch (error: any) {
+      const message = error?.message || "No se pudo editar el usuario";
+      const notFound = message.includes("no encontrado");
+      const conflict = message.includes("registrado") || message.includes("duplicate key");
+      return reply.code(notFound ? 404 : conflict ? 409 : 400).send({ error: message });
     }
   });
 

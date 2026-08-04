@@ -10,7 +10,23 @@ export const createManagedUserSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(12, "La contraseña debe tener al menos 12 caracteres"),
   nombreCompleto: z.string().trim().min(3).max(160),
-  rol: z.enum(["doctor", "evaluador"]),
+  rol: z.enum(["doctor", "evaluador", "administrador"]),
+  especialidadId: z.number().int().min(1).nullable().optional(),
+}).strict().superRefine((value, context) => {
+  if (value.rol === "doctor" && !value.especialidadId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["especialidadId"],
+      message: "Debe seleccionar la especialidad del doctor",
+    });
+  }
+});
+
+export const updateManagedUserSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(12, "La contraseña debe tener al menos 12 caracteres").optional(),
+  nombreCompleto: z.string().trim().min(3).max(160),
+  rol: z.enum(["doctor", "evaluador", "administrador"]),
   especialidadId: z.number().int().min(1).nullable().optional(),
 }).strict().superRefine((value, context) => {
   if (value.rol === "doctor" && !value.especialidadId) {
@@ -28,4 +44,5 @@ export const updateManagedUserStatusSchema = z.object({
 
 export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 export type CreateManagedUserInput = z.infer<typeof createManagedUserSchema>;
+export type UpdateManagedUserInput = z.infer<typeof updateManagedUserSchema>;
 export type UpdateManagedUserStatusInput = z.infer<typeof updateManagedUserStatusSchema>;

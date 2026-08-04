@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { and, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { hashPassword, comparePassword } from "../../core/utils/hash.js";
 import { db } from "../../db/index.js";
 import {
@@ -146,6 +146,7 @@ export class AuthService {
           eq(anamnesisTemplates.especialidadId, finalEspecialidadId),
           eq(anamnesisTemplates.esActiva, true)
         ),
+        orderBy: [desc(anamnesisTemplates.numeroVersion)],
       });
 
       await tx.insert(profiles).values({

@@ -1,4 +1,5 @@
 import { FileText, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AnamnesisTemplate } from "@/types/anamnesis-templates";
@@ -22,6 +23,28 @@ export function SessionTemplateCard({
   onTemplateChange,
 }: SessionTemplateCardProps) {
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
+
+  if (!isLoading && templates.length === 1) {
+    const template = templates[0];
+    return (
+      <Card className="border-border/40 shadow-sm">
+        <CardContent className="flex items-start gap-3 px-4 py-3">
+          <div className="rounded-md bg-primary/10 p-2">
+            <FileText className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold">{template.nombre}</p>
+              <Badge variant="outline">v{template.numeroVersion}</Badge>
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Asignada automáticamente por tu especialidad.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden border-border/40 shadow-sm">
@@ -52,7 +75,7 @@ export function SessionTemplateCard({
           <SelectContent>
             {templates.map((template) => (
               <SelectItem key={template.id} value={template.id}>
-                {formatSpecialityName(template.especialidad)}
+                {template.nombre || formatSpecialityName(template.especialidad)} · v{template.numeroVersion}
                 {template.esPredeterminada ? " · Predeterminada" : ""}
               </SelectItem>
             ))}

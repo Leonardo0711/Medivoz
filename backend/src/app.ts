@@ -10,7 +10,7 @@ import { evaluationsRoutes } from "./modules/evaluations/evaluations.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { setupSockets } from "./socket/index.js";
 import { db } from "./db/index.js";
-import { users } from "./db/schema/auth.js";
+import { userRoles, users } from "./db/schema/auth.js";
 import { eq } from "drizzle-orm";
 
 export async function buildApp() {
@@ -59,15 +59,32 @@ export async function buildApp() {
     try {
       await request.jwtVerify();
       const userId = request.user?.sub;
-      const user = userId
-        ? await db.query.users.findFirst({
-            columns: { estado: true },
-            where: eq(users.id, userId),
-          })
-        : null;
+      const [user, currentRoles] = userId
+        ? await Promise.all([
+            db.query.users.findFirst({
+              columns: { estado: true },
+              where: eq(users.id, userId),
+            }),
+            db.query.userRoles.findMany({
+              columns: { rol: true },
+              where: eq(userRoles.userId, userId),
+            }),
+          ])
+        : [null, []];
       if (!user || user.estado !== "activa") {
         return reply.code(401).send({ error: "La cuenta no está activa" });
       }
+      const currentRole = currentRoles.some((item) => item.rol === "administrador")
+        ? "administrador"
+        : currentRoles.some((item) => item.rol === "evaluador")
+          ? "evaluador"
+          : currentRoles.some((item) => item.rol === "doctor")
+            ? "doctor"
+            : null;
+      if (!currentRole) {
+        return reply.code(403).send({ error: "La cuenta no tiene un rol asignado" });
+      }
+      request.user.rol = currentRole;
     } catch (err) {
       if (!reply.sent) reply.send(err);
     }

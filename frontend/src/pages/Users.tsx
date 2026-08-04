@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
+  Pencil,
   Power,
   PowerOff,
   Search,
@@ -49,11 +50,19 @@ type ManagedUser = {
 
 type Speciality = { id: number; nombre: string };
 
-const initialForm = {
+type ManagedUserForm = {
+  nombreCompleto: string;
+  email: string;
+  password: string;
+  rol: UserRole;
+  especialidadId: string;
+};
+
+const initialForm: ManagedUserForm = {
   nombreCompleto: "",
   email: "",
   password: "",
-  rol: "doctor" as "doctor" | "evaluador",
+  rol: "doctor",
   especialidadId: "",
 };
 
@@ -78,13 +87,14 @@ const formatDate = (value: string | null) => {
 };
 
 export default function Users() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, setUser } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState(initialForm);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [form, setForm] = useState<ManagedUserForm>(initialForm);
   const [pendingStatusUser, setPendingStatusUser] = useState<ManagedUser | null>(null);
 
   const usersQuery = useQuery({
@@ -111,6 +121,30 @@ export default function Users() {
     });
   }, [roleFilter, search, statusFilter, usersQuery.data]);
 
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditingUser(null);
+    setForm(initialForm);
+  };
+
+  const openCreate = () => {
+    setEditingUser(null);
+    setForm(initialForm);
+    setFormOpen(true);
+  };
+
+  const openEdit = (managedUser: ManagedUser) => {
+    setEditingUser(managedUser);
+    setForm({
+      nombreCompleto: managedUser.nombreCompleto,
+      email: managedUser.email,
+      password: "",
+      rol: managedUser.rol,
+      especialidadId: managedUser.rol === "doctor" ? String(managedUser.especialidadId) : "",
+    });
+    setFormOpen(true);
+  };
+
   const createMutation = useMutation({
     mutationFn: () => api.post("/admin/users", {
       nombreCompleto: form.nombreCompleto.trim(),
@@ -121,12 +155,35 @@ export default function Users() {
     }),
     onSuccess: () => {
       toast.success("Usuario creado correctamente");
-      setForm(initialForm);
-      setCreateOpen(false);
+      closeForm();
       void queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error, "No se pudo crear el usuario"));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () => api.patch(`/admin/users/${editingUser!.id}`, {
+      nombreCompleto: form.nombreCompleto.trim(),
+      email: form.email.trim(),
+      ...(form.password ? { password: form.password } : {}),
+      rol: form.rol,
+      especialidadId: form.rol === "doctor" ? Number(form.especialidadId) : null,
+    }),
+    onSuccess: async () => {
+      toast.success("Usuario actualizado correctamente");
+      const editedCurrentAccount = editingUser?.id === currentUser?.id;
+      closeForm();
+      await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      if (editedCurrentAccount) {
+        const profile = (await api.get("/auth/me")).data;
+        setUser(profile);
+        localStorage.setItem("user", JSON.stringify(profile));
+      }
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, "No se pudo editar el usuario"));
     },
   });
 
@@ -148,11 +205,13 @@ export default function Users() {
     },
   });
 
-  const canCreate = Boolean(
+  const isEditing = Boolean(editingUser);
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const canSubmit = Boolean(
     form.nombreCompleto.trim().length >= 3 &&
       form.email.trim() &&
-      form.password.length >= 12 &&
-      (form.rol === "evaluador" || form.especialidadId)
+      (isEditing ? form.password.length === 0 || form.password.length >= 12 : form.password.length >= 12) &&
+      (form.rol !== "doctor" || form.especialidadId)
   );
 
   return (
@@ -167,10 +226,10 @@ export default function Users() {
                 Gestión de usuarios
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Administra el acceso de médicos y evaluadores a Medivoz.
+                Crea, edita y controla el acceso de médicos, evaluadores y administradores.
               </p>
             </div>
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button onClick={openCreate}>
               <UserPlus className="mr-2 h-4 w-4" />
               Crear usuario
             </Button>
@@ -219,7 +278,7 @@ export default function Users() {
                     <TableHead>Especialidad</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Último acceso</TableHead>
-                    <TableHead className="w-20 text-right">Acción</TableHead>
+                    <TableHead className="w-28 text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -229,7 +288,6 @@ export default function Users() {
                     <TableRow><TableCell colSpan={6} className="h-40 text-center text-muted-foreground">No se encontraron usuarios.</TableCell></TableRow>
                   ) : filteredUsers.map((managedUser) => {
                     const isCurrentAccount = managedUser.id === currentUser?.id;
-                    const isAdministrator = managedUser.rol === "administrador";
                     return (
                       <TableRow key={`${managedUser.id}-${managedUser.rol}`}>
                         <TableCell>
@@ -255,20 +313,31 @@ export default function Users() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{formatDate(managedUser.ultimoLogin)}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={isCurrentAccount || isAdministrator || statusMutation.isPending}
-                            onClick={() => setPendingStatusUser(managedUser)}
-                            title={isAdministrator
-                              ? "Las cuentas administradoras no se gestionan desde esta pantalla"
-                              : managedUser.estado === "activa" ? "Deshabilitar usuario" : "Habilitar usuario"}
-                            aria-label={managedUser.estado === "activa" ? "Deshabilitar usuario" : "Habilitar usuario"}
-                          >
-                            {managedUser.estado === "activa"
-                              ? <PowerOff className="h-4 w-4 text-destructive" />
-                              : <Power className="h-4 w-4 text-emerald-600" />}
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEdit(managedUser)}
+                              title="Editar usuario"
+                              aria-label={`Editar a ${managedUser.nombreCompleto}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={isCurrentAccount || statusMutation.isPending}
+                              onClick={() => setPendingStatusUser(managedUser)}
+                              title={isCurrentAccount
+                                ? "No puedes deshabilitar tu propia cuenta"
+                                : managedUser.estado === "activa" ? "Deshabilitar usuario" : "Habilitar usuario"}
+                              aria-label={managedUser.estado === "activa" ? "Deshabilitar usuario" : "Habilitar usuario"}
+                            >
+                              {managedUser.estado === "activa"
+                                ? <PowerOff className="h-4 w-4 text-destructive" />
+                                : <Power className="h-4 w-4 text-emerald-600" />}
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -280,12 +349,14 @@ export default function Users() {
         </div>
       </main>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={formOpen} onOpenChange={(open) => open ? setFormOpen(true) : closeForm()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Crear usuario</DialogTitle>
+            <DialogTitle>{isEditing ? "Editar usuario" : "Crear usuario"}</DialogTitle>
             <DialogDescription>
-              Completa los datos de acceso de la nueva cuenta.
+              {isEditing
+                ? "Actualiza los datos, el rol y la especialidad de la cuenta."
+                : "Completa los datos de acceso y asigna el rol de la nueva cuenta."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -299,13 +370,21 @@ export default function Users() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="managed-user-role">Rol</Label>
-              <Select value={form.rol} onValueChange={(rol: "doctor" | "evaluador") => setForm({ ...form, rol, especialidadId: "" })}>
+              <Select
+                value={form.rol}
+                disabled={editingUser?.id === currentUser?.id}
+                onValueChange={(rol: UserRole) => setForm({ ...form, rol, especialidadId: "" })}
+              >
                 <SelectTrigger id="managed-user-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="doctor">Médico</SelectItem>
                   <SelectItem value="evaluador">Evaluador</SelectItem>
+                  <SelectItem value="administrador">Administrador</SelectItem>
                 </SelectContent>
               </Select>
+              {editingUser?.id === currentUser?.id && (
+                <p className="text-xs text-muted-foreground">Tu propio rol no puede modificarse.</p>
+              )}
             </div>
             {form.rol === "doctor" && (
               <div className="grid gap-2">
@@ -321,13 +400,20 @@ export default function Users() {
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="managed-user-password">Contraseña temporal</Label>
+              <Label htmlFor="managed-user-password">
+                {isEditing ? "Nueva contraseña (opcional)" : "Contraseña temporal"}
+              </Label>
               <Input id="managed-user-password" type="password" autoComplete="new-password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
-              <p className="text-xs text-muted-foreground">Mínimo 12 caracteres.</p>
+              <p className="text-xs text-muted-foreground">
+                {isEditing ? "Déjala vacía para conservar la actual. Mínimo 12 caracteres si la cambias." : "Mínimo 12 caracteres."}
+              </p>
             </div>
-            <Button disabled={!canCreate || createMutation.isPending} onClick={() => createMutation.mutate()}>
-              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear usuario
+            <Button
+              disabled={!canSubmit || isSaving}
+              onClick={() => isEditing ? updateMutation.mutate() : createMutation.mutate()}
+            >
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? "Guardar cambios" : "Crear usuario"}
             </Button>
           </div>
         </DialogContent>

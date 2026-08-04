@@ -19,7 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_auditoria_usuarios_creado_en
   ON auditoria_usuarios (creado_en);
 
 COMMENT ON TABLE auditoria_usuarios IS
-  'Registra altas, suspensiones y reactivaciones realizadas desde la gestion administrativa.';
+  'Registra altas, ediciones, cambios de rol, suspensiones y reactivaciones realizadas desde la gestion administrativa.';
 COMMENT ON COLUMN auditoria_usuarios.detalles IS
   'Metadatos no sensibles del cambio. Nunca debe contener contrasenas ni tokens.';
 

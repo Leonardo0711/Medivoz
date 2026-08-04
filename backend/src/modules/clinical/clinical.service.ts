@@ -110,7 +110,7 @@ export class ClinicalService {
             : [eq(anamnesisTemplates.especialidadId, profile.especialidadId)])
         )
       )
-      .orderBy(asc(specialities.nombre));
+      .orderBy(asc(specialities.nombre), desc(anamnesisTemplates.numeroVersion));
 
     const sectionRows = templateRows.length
       ? await db
